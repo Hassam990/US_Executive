@@ -51,23 +51,6 @@ const CardSwap: React.FC<CardSwapProps> = ({
   easing = 'elastic',
   children
 }) => {
-  const config =
-    easing === 'elastic'
-      ? {
-          ease: 'elastic.out(0.6,0.9)',
-          durDrop: 1.2,
-          durMove: 1.2,
-          durReturn: 1.2,
-          promoteOverlap: 0.8
-        }
-      : {
-          ease: 'power2.inOut',
-          durDrop: 0.8,
-          durMove: 0.8,
-          durReturn: 0.8,
-          promoteOverlap: 0.4
-        };
-
   const childArr = useMemo(() => Children.toArray(children), [children]);
   const refs = useMemo(
     () => childArr.map(() => React.createRef<HTMLDivElement>()),
@@ -76,7 +59,6 @@ const CardSwap: React.FC<CardSwapProps> = ({
   );
 
   const container = useRef<HTMLDivElement>(null);
-  const orderRef = useRef(Array.from({ length: childArr.length }, (_, i) => i));
 
   useEffect(() => {
     const total = refs.length;
@@ -89,77 +71,60 @@ const CardSwap: React.FC<CardSwapProps> = ({
       }
     });
 
-    const trigger = ScrollTrigger.create({
-      trigger: container.current,
-      start: "top 80%",
-      onEnter: () => swap(),
-      onEnterBack: () => swap(),
+    const cards = refs.map(r => r.current).filter(Boolean);
+    const tl = gsap.timeline({
+      scrollTrigger: {
+        trigger: container.current,
+        start: "top 90%",
+        end: "bottom 10%",
+        scrub: 1,
+      }
     });
 
-    const swap = () => {
-      if (orderRef.current.length < 2) return;
+    const backSlot = makeSlot(total - 1, cardDistance, verticalDistance, total);
 
-      const [front, ...rest] = orderRef.current;
-      const elFront = refs[front].current;
-      if (!elFront) return;
+    // Stage 1: Card 0 drops, Cards 1 & 2 move forward
+    tl.to(cards[0], { y: "+=300", opacity: 0, scale: 0.8, duration: 1 }, 0);
+    tl.to([cards[1], cards[2]], {
+      x: (i) => makeSlot(i, cardDistance, verticalDistance, total).x,
+      y: (i) => makeSlot(i, cardDistance, verticalDistance, total).y,
+      z: (i) => makeSlot(i, cardDistance, verticalDistance, total).z,
+      zIndex: (i) => makeSlot(i, cardDistance, verticalDistance, total).zIndex,
+      opacity: (i) => makeSlot(i, cardDistance, verticalDistance, total).opacity,
+      duration: 1,
+    }, 0);
+    tl.set(cards[0], { zIndex: backSlot.zIndex }, 1);
+    tl.to(cards[0], { x: backSlot.x, y: backSlot.y, z: backSlot.z, opacity: backSlot.opacity, scale: 1, duration: 1 }, 1.1);
 
-      const tl = gsap.timeline();
+    // Stage 2: Card 1 drops, Cards 2 & 0 move forward
+    tl.to(cards[1], { y: "+=300", opacity: 0, scale: 0.8, duration: 1 }, 2);
+    tl.to([cards[2], cards[0]], {
+      x: (i) => makeSlot(i, cardDistance, verticalDistance, total).x,
+      y: (i) => makeSlot(i, cardDistance, verticalDistance, total).y,
+      z: (i) => makeSlot(i, cardDistance, verticalDistance, total).z,
+      zIndex: (i) => makeSlot(i, cardDistance, verticalDistance, total).zIndex,
+      opacity: (i) => makeSlot(i, cardDistance, verticalDistance, total).opacity,
+      duration: 1,
+    }, 2);
+    tl.set(cards[1], { zIndex: backSlot.zIndex }, 3);
+    tl.to(cards[1], { x: backSlot.x, y: backSlot.y, z: backSlot.z, opacity: backSlot.opacity, scale: 1, duration: 1 }, 3.1);
 
-      // Fix for the overlap: ensure the exiting card loses its focus/zIndex quickly
-      tl.to(elFront, {
-        y: '+=400',
-        opacity: 0,
-        scale: 0.8,
-        duration: config.durDrop,
-        ease: "power2.in"
-      });
+    // Stage 3: Card 2 drops, Cards 0 & 1 move forward
+    tl.to(cards[2], { y: "+=300", opacity: 0, scale: 0.8, duration: 1 }, 4);
+    tl.to([cards[0], cards[1]], {
+      x: (i) => makeSlot(i, cardDistance, verticalDistance, total).x,
+      y: (i) => makeSlot(i, cardDistance, verticalDistance, total).y,
+      z: (i) => makeSlot(i, cardDistance, verticalDistance, total).z,
+      zIndex: (i) => makeSlot(i, cardDistance, verticalDistance, total).zIndex,
+      opacity: (i) => makeSlot(i, cardDistance, verticalDistance, total).opacity,
+      duration: 1,
+    }, 4);
+    tl.set(cards[2], { zIndex: backSlot.zIndex }, 5);
+    tl.to(cards[2], { x: backSlot.x, y: backSlot.y, z: backSlot.z, opacity: backSlot.opacity, scale: 1, duration: 1 }, 5.1);
 
-      tl.addLabel('promote', `-=${config.durDrop * config.promoteOverlap}`);
-      
-      rest.forEach((idx, i) => {
-        const el = refs[idx].current;
-        const slot = makeSlot(i, cardDistance, verticalDistance, total);
-        
-        tl.to(el, {
-          x: slot.x,
-          y: slot.y,
-          z: slot.z,
-          zIndex: slot.zIndex,
-          opacity: slot.opacity,
-          duration: config.durMove,
-          ease: config.ease
-        }, 'promote');
-      });
-
-      const backSlot = makeSlot(total - 1, cardDistance, verticalDistance, total);
-      tl.addLabel('return', '>-0.2');
-      
-      tl.set(elFront, { 
-        zIndex: backSlot.zIndex,
-        x: backSlot.x,
-        y: backSlot.y + 100 // start below
-      }, 'return');
-
-      tl.to(elFront, {
-        x: backSlot.x,
-        y: backSlot.y,
-        z: backSlot.z,
-        opacity: backSlot.opacity,
-        scale: 1,
-        duration: config.durReturn,
-        ease: config.ease
-      }, 'return');
-
-      tl.call(() => {
-        orderRef.current = [...rest, front];
-      });
-    };
-
-    // We can also make it trigger on scroll progress if the user wants continuous flipping
-    // but a discrete "onEnter" or "onUpdate" threshold is more controlled for this component.
-    
     return () => {
-      trigger.kill();
+      if (tl.scrollTrigger) tl.scrollTrigger.kill();
+      tl.kill();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardDistance, verticalDistance, skewAmount, easing]);
