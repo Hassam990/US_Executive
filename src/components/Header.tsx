@@ -11,7 +11,7 @@ export function Header() {
                 {/* Logo */}
                 <div className="relative z-10 flex items-center gap-2">
                     <Link to="/">
-                        <img src="/logo.png" alt="US Executive Travel" className="h-10 md:h-12 w-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
+                        <img src="/us_executive_logo.png" alt="US Executive Travel" className="h-12 md:h-16 lg:h-16 w-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
                     </Link>
                 </div>
 

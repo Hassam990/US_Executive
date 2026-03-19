@@ -12,7 +12,7 @@ export function Footer() {
                     <div className="col-span-1 md:col-span-2">
                         <div className="flex items-center gap-2 mb-6">
                             <Link to="/">
-                                <img src="/logo.png" alt="US Executive Travel" className="h-16 w-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
+                                <img src="/us_executive_logo.png" alt="US Executive Travel" className="h-20 md:h-24 w-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
                             </Link>
                         </div>
                         <p className="text-white/60 max-w-sm mb-6 leading-relaxed">

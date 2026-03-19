@@ -115,7 +115,7 @@ export function Admin() {
             <header className="bg-black/80 backdrop-blur-md border-b border-white/10 p-6 sticky top-0 z-50">
                 <div className="container mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <img src="/logo.png" alt="Logo" className="h-8 opacity-80" />
+                        <img src="/us_executive_logo.png" alt="Logo" className="h-12 opacity-80 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
                         <h2 className="text-xl font-bold text-white tracking-widest uppercase">Admin Dashboard</h2>
                     </div>
                     <Button variant="ghost" className="text-pink-400" onClick={() => { setToken(null); localStorage.removeItem('adminToken'); }}>
