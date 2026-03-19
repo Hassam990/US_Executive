@@ -1,39 +1,51 @@
-import { Link } from "react-router-dom";
-import { Button } from "./ui/button";
+import CardNav from "./CardNav/CardNav";
 
 export function Header() {
+    const navItems = [
+        {
+            label: "Services",
+            bgColor: "#1a000a",
+            textColor: "#fff",
+            links: [
+                { label: "Airport Transfers", href: "/services", ariaLabel: "Airport Transfers" },
+                { label: "Business Class", href: "/services", ariaLabel: "Business Class" },
+                { label: "Event Travel", href: "/services", ariaLabel: "Event Travel" }
+            ]
+        },
+        {
+            label: "Our Fleet",
+            bgColor: "#0a0005",
+            textColor: "#fff",
+            links: [
+                { label: "Executive Saloon", href: "/fleet", ariaLabel: "Executive Saloon" },
+                { label: "Premium MPV", href: "/fleet", ariaLabel: "Premium MPV" },
+                { label: "Luxury Minivan", href: "/fleet", ariaLabel: "Luxury Minivan" }
+            ]
+        },
+        {
+            label: "Company",
+            bgColor: "#1a000a",
+            textColor: "#fff",
+            links: [
+                { label: "Contact Us", href: "/contact", ariaLabel: "Contact Us" },
+                { label: "Driver Portal", href: "/admin", ariaLabel: "Driver Portal" },
+                { label: "Terms of Service", href: "/terms", ariaLabel: "Terms" }
+            ]
+        }
+    ];
+
     return (
-        <header className="fixed top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-6xl z-50 transition-all duration-300">
-            <div className="relative overflow-hidden bg-black/40 backdrop-blur-2xl border border-white/10 rounded-full px-6 lg:px-8 py-3 flex items-center justify-between shadow-[0_8px_32px_0_rgba(236,72,153,0.2)]">
-                {/* Radial Glow Effect */}
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-pink-500/15 via-transparent to-transparent opacity-70 pointer-events-none" />
-
-                {/* Logo */}
-                <div className="relative z-10 flex items-center gap-2">
-                    <Link to="/">
-                        <img src="/us_executive_logo.png" alt="US Executive Travel" className="h-12 md:h-16 lg:h-16 w-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
-                    </Link>
-                </div>
-
-                {/* Desktop Navigation */}
-                <nav className="relative z-10 hidden md:flex items-center gap-8 text-sm font-bold text-white/70 uppercase tracking-widest">
-                    <Link to="/services" className="hover:text-pink-300 transition-colors">Services</Link>
-                    <Link to="/fleet" className="hover:text-pink-300 transition-colors">Our Fleet</Link>
-                    <Link to="/contact" className="hover:text-pink-300 transition-colors">Contact</Link>
-                </nav>
-
-                {/* CTA Buttons */}
-                <div className="relative z-10 flex items-center gap-4">
-                    <Button variant="ghost" className="text-white hover:text-pink-200 hover:bg-white/5 hidden lg:inline-flex font-semibold">
-                        Driver Portal
-                    </Button>
-                    <Link to="/">
-                        <Button className="bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 text-white border-0 shadow-lg shadow-pink-500/20 rounded-full px-6 py-5 md:px-8 font-extrabold uppercase tracking-wide">
-                            Book Now
-                        </Button>
-                    </Link>
-                </div>
-            </div>
+        <header className="fixed top-0 left-0 right-0 z-[100]">
+            <CardNav 
+                logo="/us_executive_logo.png"
+                logoAlt="US Executive Travel"
+                items={navItems}
+                baseColor="#000"
+                menuColor="#ec4899"
+                buttonBgColor="#ec4899"
+                buttonTextColor="#fff"
+                ease="power3.out"
+            />
         </header>
     );
 }
