@@ -62,8 +62,6 @@ export function Home() {
                                 height={440}
                                 cardDistance={50}
                                 verticalDistance={40}
-                                delay={5000}
-                                pauseOnHover={true}
                                 skewAmount={4}
                             >
                                 <Card className="p-10 flex flex-col justify-between border-white/10 shadow-2xl overflow-hidden group">

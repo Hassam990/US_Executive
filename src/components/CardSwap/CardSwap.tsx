@@ -1,6 +1,9 @@
 import React, { Children, cloneElement, forwardRef, isValidElement, useEffect, useMemo, useRef } from 'react';
 import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import './CardSwap.css';
+
+gsap.registerPlugin(ScrollTrigger);
 
 export const Card = forwardRef(({ customClass, ...rest }: any, ref) => (
   <div ref={ref} {...rest} className={`card ${customClass ?? ''} ${rest.className ?? ''}`.trim()} />
@@ -10,8 +13,9 @@ Card.displayName = 'Card';
 const makeSlot = (i: number, distX: number, distY: number, total: number) => ({
   x: i * distX,
   y: -i * distY,
-  z: -i * distX * 1.5,
-  zIndex: total - i
+  z: -i * distX * 2,
+  zIndex: total - i,
+  opacity: i === 0 ? 1 : 1 - (i * 0.2)
 });
 
 const placeNow = (el: any, slot: any, skew: number) =>
@@ -24,6 +28,7 @@ const placeNow = (el: any, slot: any, skew: number) =>
     skewY: skew,
     transformOrigin: 'center center',
     zIndex: slot.zIndex,
+    opacity: slot.opacity,
     force3D: true
   });
 
@@ -32,9 +37,6 @@ interface CardSwapProps {
   height?: number | string;
   cardDistance?: number;
   verticalDistance?: number;
-  delay?: number;
-  pauseOnHover?: boolean;
-  onCardClick?: (index: number) => void;
   skewAmount?: number;
   easing?: 'elastic' | 'smooth';
   children: React.ReactNode;
@@ -45,9 +47,6 @@ const CardSwap: React.FC<CardSwapProps> = ({
   height = 400,
   cardDistance = 60,
   verticalDistance = 70,
-  delay = 5000,
-  pauseOnHover = false,
-  onCardClick,
   skewAmount = 6,
   easing = 'elastic',
   children
@@ -56,19 +55,17 @@ const CardSwap: React.FC<CardSwapProps> = ({
     easing === 'elastic'
       ? {
           ease: 'elastic.out(0.6,0.9)',
-          durDrop: 2,
-          durMove: 2,
-          durReturn: 2,
-          promoteOverlap: 0.9,
-          returnDelay: 0.05
+          durDrop: 1.2,
+          durMove: 1.2,
+          durReturn: 1.2,
+          promoteOverlap: 0.8
         }
       : {
-          ease: 'power1.inOut',
+          ease: 'power2.inOut',
           durDrop: 0.8,
           durMove: 0.8,
           durReturn: 0.8,
-          promoteOverlap: 0.45,
-          returnDelay: 0.2
+          promoteOverlap: 0.4
         };
 
   const childArr = useMemo(() => Children.toArray(children), [children]);
@@ -78,105 +75,94 @@ const CardSwap: React.FC<CardSwapProps> = ({
     [childArr.length]
   );
 
-  const order = useRef(Array.from({ length: childArr.length }, (_, i) => i));
-
-  const tlRef = useRef<gsap.core.Timeline | null>(null);
-  const intervalRef = useRef<number | null>(null);
   const container = useRef<HTMLDivElement>(null);
+  const orderRef = useRef(Array.from({ length: childArr.length }, (_, i) => i));
 
   useEffect(() => {
     const total = refs.length;
+    if (total < 2) return;
+
+    // Initial positioning
     refs.forEach((r, i) => {
       if (r.current) {
         placeNow(r.current, makeSlot(i, cardDistance, verticalDistance, total), skewAmount);
       }
     });
 
-    const swap = () => {
-      if (order.current.length < 2) return;
+    const trigger = ScrollTrigger.create({
+      trigger: container.current,
+      start: "top 80%",
+      onEnter: () => swap(),
+      onEnterBack: () => swap(),
+    });
 
-      const [front, ...rest] = order.current;
+    const swap = () => {
+      if (orderRef.current.length < 2) return;
+
+      const [front, ...rest] = orderRef.current;
       const elFront = refs[front].current;
       if (!elFront) return;
-      const tl = gsap.timeline();
-      tlRef.current = tl;
 
+      const tl = gsap.timeline();
+
+      // Fix for the overlap: ensure the exiting card loses its focus/zIndex quickly
       tl.to(elFront, {
-        y: '+=500',
+        y: '+=400',
+        opacity: 0,
+        scale: 0.8,
         duration: config.durDrop,
-        ease: config.ease
+        ease: "power2.in"
       });
 
       tl.addLabel('promote', `-=${config.durDrop * config.promoteOverlap}`);
+      
       rest.forEach((idx, i) => {
         const el = refs[idx].current;
-        const slot = makeSlot(i, cardDistance, verticalDistance, refs.length);
-        tl.set(el, { zIndex: slot.zIndex }, 'promote');
-        tl.to(
-          el,
-          {
-            x: slot.x,
-            y: slot.y,
-            z: slot.z,
-            duration: config.durMove,
-            ease: config.ease
-          },
-          `promote+=${i * 0.15}`
-        );
+        const slot = makeSlot(i, cardDistance, verticalDistance, total);
+        
+        tl.to(el, {
+          x: slot.x,
+          y: slot.y,
+          z: slot.z,
+          zIndex: slot.zIndex,
+          opacity: slot.opacity,
+          duration: config.durMove,
+          ease: config.ease
+        }, 'promote');
       });
 
-      const backSlot = makeSlot(refs.length - 1, cardDistance, verticalDistance, refs.length);
-      tl.addLabel('return', `promote+=${config.durMove * config.returnDelay}`);
-      tl.call(
-        () => {
-          gsap.set(elFront, { zIndex: backSlot.zIndex });
-        },
-        [],
-        'return'
-      );
-      tl.to(
-        elFront,
-        {
-          x: backSlot.x,
-          y: backSlot.y,
-          z: backSlot.z,
-          duration: config.durReturn,
-          ease: config.ease
-        },
-        'return'
-      );
+      const backSlot = makeSlot(total - 1, cardDistance, verticalDistance, total);
+      tl.addLabel('return', '>-0.2');
+      
+      tl.set(elFront, { 
+        zIndex: backSlot.zIndex,
+        x: backSlot.x,
+        y: backSlot.y + 100 // start below
+      }, 'return');
+
+      tl.to(elFront, {
+        x: backSlot.x,
+        y: backSlot.y,
+        z: backSlot.z,
+        opacity: backSlot.opacity,
+        scale: 1,
+        duration: config.durReturn,
+        ease: config.ease
+      }, 'return');
 
       tl.call(() => {
-        order.current = [...rest, front];
+        orderRef.current = [...rest, front];
       });
     };
 
-    swap();
-    intervalRef.current = window.setInterval(swap, delay);
-
-    if (pauseOnHover) {
-      const node = container.current;
-      if (node) {
-        const pause = () => {
-          tlRef.current?.pause();
-          if (intervalRef.current) clearInterval(intervalRef.current);
-        };
-        const resume = () => {
-          tlRef.current?.play();
-          intervalRef.current = window.setInterval(swap, delay);
-        };
-        node.addEventListener('mouseenter', pause);
-        node.addEventListener('mouseleave', resume);
-        return () => {
-          node.removeEventListener('mouseenter', pause);
-          node.removeEventListener('mouseleave', resume);
-          if (intervalRef.current) clearInterval(intervalRef.current);
-        };
-      }
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    // We can also make it trigger on scroll progress if the user wants continuous flipping
+    // but a discrete "onEnter" or "onUpdate" threshold is more controlled for this component.
+    
+    return () => {
+      trigger.kill();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardDistance, verticalDistance, delay, pauseOnHover, skewAmount, easing]);
+  }, [cardDistance, verticalDistance, skewAmount, easing]);
 
   const rendered = childArr.map((child, i) => {
     if (isValidElement(child)) {
@@ -184,11 +170,7 @@ const CardSwap: React.FC<CardSwapProps> = ({
         return cloneElement(element, {
           key: i,
           ref: refs[i],
-          style: { width, height, ...(element.props.style ?? {}) },
-          onClick: (e: React.MouseEvent) => {
-            element.props.onClick?.(e);
-            onCardClick?.(i);
-          }
+          style: { width, height, ...(element.props.style ?? {}) }
         });
     }
     return child;
