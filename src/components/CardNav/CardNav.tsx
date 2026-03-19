@@ -1,8 +1,11 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { GoArrowUpRight } from 'react-icons/go';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import './CardNav.css';
+
+gsap.registerPlugin(ScrollTrigger);
 
 interface NavLink {
   label: string;
@@ -42,6 +45,7 @@ const CardNav: React.FC<CardNavProps> = ({
 }) => {
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const location = useLocation();
   const navRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
   const tlRef = useRef<gsap.core.Timeline | null>(null);
@@ -140,6 +144,22 @@ const CardNav: React.FC<CardNavProps> = ({
     return () => window.removeEventListener('resize', handleResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExpanded]);
+
+  // Close menu on route change
+  useLayoutEffect(() => {
+    if (isExpanded) {
+      setIsHamburgerOpen(false);
+      const tl = tlRef.current;
+      if (tl) {
+        tl.reverse();
+        tl.eventCallback('onReverseComplete', () => setIsExpanded(false));
+      } else {
+        setIsExpanded(false);
+      }
+    }
+    // Refresh ScrollTrigger globally on route change
+    ScrollTrigger.refresh();
+  }, [location.pathname]);
 
   const toggleMenu = () => {
     const tl = tlRef.current;
