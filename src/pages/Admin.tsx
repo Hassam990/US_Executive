@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Lock, Eye, Users, FileText, CheckCircle, Clock } from "lucide-react";
+import { Lock, Eye, Users, FileText, Clock } from "lucide-react";
 
 export function Admin() {
     const [token, setToken] = useState<string | null>(localStorage.getItem('adminToken'));
