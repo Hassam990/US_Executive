@@ -535,7 +535,7 @@ export function BookingWidget() {
                                         `--------------------------\n` +
                                         `Please provide a quote for this journey.`
                                     );
-                                    window.open(`https://wa.me/447950742187?text=${message}`, '_blank');
+                                    window.open(`https://wa.me/447412671467?text=${message}`, '_blank');
                                 }}
                                 className="w-full h-16 bg-[#25D366] hover:bg-[#20ba59] text-white font-black text-xl tracking-wide rounded-xl shadow-[0_10px_30px_rgba(37,211,102,0.3)] transition-all hover:scale-[1.02] border-b-4 border-[#128C7E] uppercase flex items-center justify-center gap-3"
                             >
