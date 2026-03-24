@@ -19,7 +19,8 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
         msg: 'Serverless backend is alive!',
-        env: {
+        env_keys: Object.keys(process.env), // Added to see if keys are present
+        env_values: {
             NODE_ENV: process.env.NODE_ENV,
             HAS_EMAIL_USER: !!process.env.EMAIL_USER,
             HAS_EMAIL_PASS: !!process.env.EMAIL_PASS,
