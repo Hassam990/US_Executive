@@ -1,10 +1,46 @@
-import { Mail, Phone, Clock } from "lucide-react";
+import { useState } from "react";
+import { Mail, Phone, Clock, Loader2 } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Button } from "../components/ui/button";
 
 export function Contact() {
+    const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+    const [formData, setFormData] = useState({
+        name: "",
+        email: "",
+        phone: "",
+        message: ""
+    });
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setStatus("loading");
+
+        try {
+            const response = await fetch("/api/contact", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(formData)
+            });
+
+            if (response.ok) {
+                setStatus("success");
+                setFormData({ name: "", email: "", phone: "", message: "" });
+            } else {
+                setStatus("error");
+            }
+        } catch (error) {
+            console.error(error);
+            setStatus("error");
+        }
+    };
+
     return (
         <main className="min-h-screen bg-[#160008] pt-32 pb-24 relative overflow-hidden">
             {/* Background */}
@@ -69,34 +105,76 @@ export function Contact() {
                             <h3 className="text-3xl font-bold text-white mb-2">Send a Message</h3>
                             <p className="text-white/60 mb-8">Fill out the form below and our team will get back to you promptly.</p>
 
-                            <form className="space-y-6 flex-grow flex flex-col">
+                            <form onSubmit={handleSubmit} className="space-y-6 flex-grow flex flex-col">
                                 <div className="grid md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <Label className="text-white/80">Full Name</Label>
-                                        <Input placeholder="John Doe" className="bg-black/40 border-white/10 text-white h-12 focus-visible:ring-pink-500" />
+                                        <Input 
+                                            name="name"
+                                            value={formData.name}
+                                            onChange={handleChange}
+                                            required
+                                            placeholder="John Doe" 
+                                            className="bg-black/40 border-white/10 text-white h-12 focus-visible:ring-pink-500" 
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="text-white/80">Phone Number</Label>
-                                        <Input placeholder="+44 7000 000000" className="bg-black/40 border-white/10 text-white h-12 focus-visible:ring-pink-500" />
+                                        <Input 
+                                            name="phone"
+                                            value={formData.phone}
+                                            onChange={handleChange}
+                                            required
+                                            placeholder="+44 7000 000000" 
+                                            className="bg-black/40 border-white/10 text-white h-12 focus-visible:ring-pink-500" 
+                                        />
                                     </div>
                                 </div>
 
                                 <div className="space-y-2">
                                     <Label className="text-white/80">Email Address</Label>
-                                    <Input type="email" placeholder="john@example.com" className="bg-black/40 border-white/10 text-white h-12 focus-visible:ring-pink-500" />
+                                    <Input 
+                                        name="email"
+                                        type="email" 
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        required
+                                        placeholder="john@example.com" 
+                                        className="bg-black/40 border-white/10 text-white h-12 focus-visible:ring-pink-500" 
+                                    />
                                 </div>
 
                                 <div className="space-y-2 flex-grow flex flex-col">
                                     <Label className="text-white/80">Message or Inquiry</Label>
                                     <textarea
+                                        name="message"
+                                        value={formData.message}
+                                        onChange={handleChange}
+                                        required
                                         placeholder="How can we help you?"
                                         className="w-full flex-grow min-h-[120px] p-4 bg-black/40 border border-white/10 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-pink-500 resize-none"
                                     ></textarea>
                                 </div>
 
-                                <Button className="w-full h-12 bg-pink-600 hover:bg-pink-500 text-white font-bold text-lg rounded-xl shadow-[0_0_20px_rgba(236,72,153,0.3)] transition-all mt-auto">
-                                    Send Message
+                                <Button 
+                                    type="submit"
+                                    disabled={status === "loading"}
+                                    className="w-full h-12 bg-pink-600 hover:bg-pink-500 text-white font-bold text-lg rounded-xl shadow-[0_0_20px_rgba(236,72,153,0.3)] transition-all mt-auto"
+                                >
+                                    {status === "loading" ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Sending...
+                                        </>
+                                    ) : "Send Message"}
                                 </Button>
+
+                                {status === "success" && (
+                                    <p className="text-green-400 text-center font-medium mt-2">Message sent successfully!</p>
+                                )}
+                                {status === "error" && (
+                                    <p className="text-red-400 text-center font-medium mt-2">Failed to send message. Please try again.</p>
+                                )}
                             </form>
                         </CardContent>
                     </Card>

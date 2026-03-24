@@ -114,6 +114,9 @@ export function BookingWidget() {
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
     const [formData, setFormData] = useState({
+        name: "",
+        email: "",
+        phone: "",
         pickup: "",
         dropoff: "",
         date: "",
@@ -137,7 +140,7 @@ export function BookingWidget() {
         setStatus("loading");
 
         try {
-            const response = await fetch("http://localhost:5000/api/book", {
+            const response = await fetch("/api/book", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ isReturn, ...formData })
@@ -146,10 +149,12 @@ export function BookingWidget() {
             if (response.ok) {
                 setStatus("success");
             } else {
+                const errData = await response.json().catch(() => ({}));
+                console.error("Server error:", errData);
                 setStatus("error");
             }
         } catch (error) {
-            console.error(error);
+            console.error("Network error:", error);
             setStatus("error");
         }
     };
@@ -183,6 +188,45 @@ export function BookingWidget() {
                                 onChange={(e) => setIsReturn(e.target.checked)}
                             />
                         </label>
+                    </div>
+
+                    {/* Contact Details */}
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-white font-semibold">Full Name</Label>
+                            <Input
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                required
+                                placeholder="John Doe"
+                                className="bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-white font-semibold">Phone Number</Label>
+                            <Input
+                                name="phone"
+                                type="tel"
+                                value={formData.phone}
+                                onChange={handleChange}
+                                required
+                                placeholder="07123 456789"
+                                className="bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl"
+                            />
+                        </div>
+                        <div className="col-span-2 space-y-2">
+                            <Label className="text-white font-semibold">Email Address</Label>
+                            <Input
+                                name="email"
+                                type="email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                required
+                                placeholder="john@example.com"
+                                className="bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl"
+                            />
+                        </div>
                     </div>
 
                     <div className="space-y-5">

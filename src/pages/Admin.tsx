@@ -70,6 +70,53 @@ export function Admin() {
         }
     };
 
+    // Google Login Integration
+    useEffect(() => {
+        /* global google */
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+
+        script.onload = () => {
+             // @ts-ignore
+            google.accounts.id.initialize({
+                client_id: "816912441965-ue09q6u0sfc0h8sl6404vpr269rjlaqp.apps.googleusercontent.com",
+                callback: handleGoogleResponse
+            });
+             // @ts-ignore
+            google.accounts.id.renderButton(
+                document.getElementById("googleBtn"),
+                { theme: "filled_blue", size: "large", width: "100%", shape: "pill" }
+            );
+        };
+        return () => { document.head.removeChild(script); };
+    }, []);
+
+    const handleGoogleResponse = async (response: any) => {
+        setStatus("loading");
+        try {
+            const res = await fetch("http://localhost:5000/api/admin/google-login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ credential: response.credential })
+            });
+            const result = await res.json();
+            if (res.ok && result.success) {
+                setToken(result.token);
+                localStorage.setItem('adminToken', result.token);
+                setError("");
+            } else {
+                setError(result.message || "Unauthorized Google Login");
+            }
+        } catch (err) {
+            setError("Google auth failed.");
+        } finally {
+            setStatus("idle");
+        }
+    };
+
     if (!token) {
         return (
             <div className="min-h-screen bg-[#160008] flex items-center justify-center p-6 relative overflow-hidden">
@@ -97,10 +144,19 @@ export function Admin() {
 
                         {error && <p className="text-red-400 text-sm font-semibold">{error}</p>}
 
-                        <Button disabled={status === "loading"} type="submit" className="w-full h-14 bg-gradient-to-r from-pink-600 to-pink-500 hover:to-pink-400 text-white font-black text-lg uppercase tracking-widest rounded-xl hover:scale-[1.02] transition-transform">
+                        <Button disabled={status === "loading"} type="submit" className="w-full h-14 bg-gradient-to-r from-pink-600 to-pink-500 hover:to-pink-400 text-white font-black text-lg uppercase tracking-widest rounded-xl hover:scale-[1.02] transition-transform shadow-[0_4px_20px_rgba(236,72,153,0.3)]">
                             {status === "loading" ? "Authenticating..." : "Access Dashboard"}
                         </Button>
                     </form>
+
+                    {/* Divider */}
+                    <div className="relative my-8">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/5"></span></div>
+                        <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#1a000d] px-4 text-white/30 font-bold tracking-widest">Or Continue With</span></div>
+                    </div>
+
+                    {/* Google Button Container */}
+                    <div id="googleBtn" className="w-full h-14 flex items-center justify-center rounded-xl overflow-hidden transition-all hover:ring-2 hover:ring-pink-500/50" />
                 </div>
             </div>
         );
