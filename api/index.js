@@ -2,14 +2,23 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
-import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import path from 'path';
+import { createRequire } from 'module';
 
+const require = createRequire(import.meta.url);
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Load sqlite3 safely
+let sqlite3;
+try {
+    sqlite3 = require('sqlite3');
+} catch (e) {
+    console.error("Sqlite3 failed to load in this environment:", e.message);
+}
 
 // Request logger
 app.use((req, res, next) => {
@@ -20,6 +29,7 @@ app.use((req, res, next) => {
 // Database initialization (Safe for Serverless)
 let db;
 const initDb = async () => {
+    if (!sqlite3) return; // Skip if sqlite3 failed to load
     try {
         if (!db) {
             db = await open({
@@ -31,19 +41,12 @@ const initDb = async () => {
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT, email TEXT, phone TEXT, pickup TEXT, dropoff TEXT,
                     date TEXT, time TEXT, returnDate TEXT, returnTime TEXT,
-                    passengers TEXT, vehicleClass TEXT, status TEXT DEFAULT 'Pending',
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    passengers TEXT, vehicleClass TEXT, status TEXT DEFAULT 'Pending'
                 );
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT, email TEXT, phone TEXT, message TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    name TEXT, email TEXT, phone TEXT, message TEXT
                 );
-                CREATE TABLE IF NOT EXISTS analytics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    metric TEXT UNIQUE, value INTEGER DEFAULT 0
-                );
-                INSERT OR IGNORE INTO analytics (metric, value) VALUES ('page_views', 0);
             `);
         }
     } catch (dbErr) {
@@ -51,30 +54,23 @@ const initDb = async () => {
     }
 };
 
-// Transporter setup with Gmail App Password
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
-        pass: process.env.EMAIL_PASS || 'your-app-password'
-    }
+// Help endpoint for diagnostics
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        env: {
+            NODE_ENV: process.env.NODE_ENV,
+            HAS_EMAIL_USER: !!process.env.EMAIL_USER,
+            HAS_EMAIL_PASS: !!process.env.EMAIL_PASS,
+        },
+        db: !!sqlite3 ? 'available' : 'unavailable'
+    });
 });
 
 // Helper for dynamic recipient
 const getReceiver = () => process.env.NODE_ENV === 'development' 
     ? process.env.TEST_EMAIL_RECEIVER 
     : (process.env.EMAIL_RECEIVER || 'hello@us-executivetravel.com');
-
-// Analytics tracking endpoint
-app.post('/api/track-visit', async (req, res) => {
-    try {
-        await initDb();
-        if (db) await db.run(`UPDATE analytics SET value = value + 1 WHERE metric = 'page_views'`);
-        res.status(200).json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false });
-    }
-});
 
 app.post('/api/book', async (req, res) => {
     try {
@@ -84,55 +80,50 @@ app.post('/api/book', async (req, res) => {
             returnDate, returnTime, passengers, vehicleClass
         } = req.body;
 
-        // Save to Database (Safe fail)
+        // Save to Database (Non-blocking)
         if (db) {
-            await db.run(
+            db.run(
                 `INSERT INTO bookings (name, email, phone, pickup, dropoff, date, time, returnDate, returnTime, passengers, vehicleClass) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [name, email, phone, pickup, dropoff, date, time, isReturn ? returnDate : null, isReturn ? returnTime : null, passengers, vehicleClass]
             ).catch(e => console.error("DB write failed:", e.message));
         }
 
-        let mailBody = `
-NEW TAXI BOOKING REQUEST
-========================================
-CUSTOMER DETAILS:
-- Name: ${name}
-- Email: ${email}
-- Phone: ${phone}
-
-JOURNEY DETAILS:
-- Pick-up: ${pickup}
-- Drop-off: ${dropoff}
-- Date: ${date} at ${time}
-`;
-        if (isReturn) {
-            mailBody += `- Return: ${returnDate} at ${returnTime}\n`;
-        }
-        mailBody += `
-REQUIREMENTS:
-- Passengers: ${passengers}
-- Vehicle: ${vehicleClass}
-========================================
-        `;
-
         const mailOptions = {
             from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
             to: getReceiver(),
-            subject: `Request: ${isReturn ? 'Return' : 'One-Way'} Booking from ${name}`,
-            text: mailBody
+            subject: `Taxi Booking Request from ${name}`,
+            text: `
+NEW TAXI BOOKING REQUEST
+=========================
+Customer: ${name}
+Email: ${email}
+Phone: ${phone}
+
+Pickup: ${pickup}
+Drop-off: ${dropoff}
+Date: ${date} at ${time}
+${isReturn ? `Return: ${returnDate} at ${returnTime}` : ''}
+
+Passengers: ${passengers}
+Vehicle: ${vehicleClass}
+=========================
+            `
         };
 
-        try {
-            await transporter.sendMail(mailOptions);
-        } catch (mailError) {
-            console.error("Mail transport failed:", mailError.message);
-        }
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
 
-        res.status(200).json({ success: true, message: "Request processed." });
+        await transporter.sendMail(mailOptions);
+        res.status(200).json({ success: true, message: "Request received." });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Request failed." });
+        console.error("Booking Error:", error.message);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -142,42 +133,32 @@ app.post('/api/contact', async (req, res) => {
         const { name, email, phone, message } = req.body;
 
         if (db) {
-            await db.run(
+            db.run(
                 `INSERT INTO messages (name, email, phone, message) VALUES (?, ?, ?, ?)`,
                 [name, email, phone, message]
             ).catch(e => console.error("DB write failed:", e.message));
         }
 
-        const mailBody = `
-NEW CONTACT MESSAGE
-========================================
-CUSTOMER DETAILS:
-- Name: ${name}
-- Email: ${email}
-- Phone: ${phone}
-
-MESSAGE:
-${message}
-========================================
-        `;
-
         const mailOptions = {
-            from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
+            from: process.env.EMAIL_USER,
             to: getReceiver(),
-            subject: `New Message from ${name}`,
-            text: mailBody
+            subject: `Contact message from ${name}`,
+            text: `New Message:\n${message}\n\nFrom: ${name} (${email}, ${phone})`
         };
 
-        try {
-            await transporter.sendMail(mailOptions);
-        } catch (mailError) {
-            console.error("Mail transport failed:", mailError.message);
-        }
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
 
-        res.status(200).json({ success: true, message: "Message processed." });
+        await transporter.sendMail(mailOptions);
+        res.status(200).json({ success: true });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Message failed." });
+        console.error("Contact Error:", error.message);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
