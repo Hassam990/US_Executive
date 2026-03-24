@@ -2,7 +2,64 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { MapPin, Calendar, Clock, Users, ArrowRightLeft, Car, Loader2 } from "lucide-react";
+import { MapPin, Calendar, Clock, Users, ArrowRightLeft, Car, Loader2, Map as MapIcon, X } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+
+// Fix for default marker icons in React-Leaflet
+import 'leaflet/dist/leaflet.css';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
+
+// Custom Icons for Pickup and Dropoff
+const pickupIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-pink.png',
+    shadowUrl: markerShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
+const dropoffIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png',
+    shadowUrl: markerShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
+/**
+ * Component to handle map center updates
+ */
+function ChangeView({ center, zoom }: { center: [number, number], zoom: number }) {
+    const map = useMap();
+    useEffect(() => {
+        map.setView(center, zoom);
+    }, [center, zoom, map]);
+    return null;
+}
+
+/**
+ * Component to handle clicks on the map
+ */
+function MapEvents({ onMapClick }: { onMapClick: (lat: number, lon: number) => void }) {
+    useMapEvents({
+        click(e) {
+            onMapClick(e.latlng.lat, e.latlng.lng);
+        },
+    });
+    return null;
+}
 
 /**
  * AddressAutocomplete component uses Nominatim (OpenStreetMap) to fetch 
@@ -11,12 +68,14 @@ import { MapPin, Calendar, Clock, Users, ArrowRightLeft, Car, Loader2 } from "lu
 function AddressAutocomplete({
     value,
     onChange,
+    onLocationSelect,
     placeholder,
     name,
     icon: Icon
 }: {
     value: string,
     onChange: (name: string, val: string) => void,
+    onLocationSelect?: (lat: number, lon: number, address: string) => void,
     placeholder: string,
     name: string,
     icon: React.ElementType
@@ -67,8 +126,11 @@ function AddressAutocomplete({
         }, 500); // 500ms debounce
     };
 
-    const handleSelect = (address: string) => {
-        onChange(name, address);
+    const handleSelect = (s: any) => {
+        onChange(name, s.display_name);
+        if (onLocationSelect) {
+            onLocationSelect(parseFloat(s.lat), parseFloat(s.lon), s.display_name);
+        }
         setIsOpen(false);
         setSuggestions([]);
     };
@@ -90,11 +152,11 @@ function AddressAutocomplete({
 
             {/* Dropdown Suggestions */}
             {isOpen && suggestions.length > 0 && (
-                <div className="absolute z-50 w-full mt-2 bg-[#1a000d]/95 backdrop-blur-xl border border-pink-500/30 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden">
+                <div className="absolute z-[1001] w-full mt-2 bg-[#1a000d]/95 backdrop-blur-xl border border-pink-500/30 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden">
                     {suggestions.map((s, idx) => (
                         <div
                             key={idx}
-                            onClick={() => handleSelect(s.display_name)}
+                            onClick={() => handleSelect(s)}
                             className="px-4 py-3 hover:bg-pink-600/20 cursor-pointer border-b border-white/5 last:border-0 transition-colors flex items-start gap-3"
                         >
                             <MapPin className="w-4 h-4 text-pink-500/50 mt-1 flex-shrink-0" />
@@ -112,6 +174,16 @@ function AddressAutocomplete({
 export function BookingWidget() {
     const [isReturn, setIsReturn] = useState(false);
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+    const [showMap, setShowMap] = useState(false);
+    const [activeField, setActiveField] = useState<"pickup" | "dropoff" | null>(null);
+
+    const [coords, setCoords] = useState<{
+        pickup: [number, number] | null;
+        dropoff: [number, number] | null;
+    }>({
+        pickup: null,
+        dropoff: null
+    });
 
     const [formData, setFormData] = useState({
         name: "",
@@ -129,6 +201,31 @@ export function BookingWidget() {
 
     const handleFieldChange = (name: string, value: string) => {
         setFormData(p => ({ ...p, [name]: value }));
+    };
+
+    const handleLocationSelect = (lat: number, lon: number, address: string, field: "pickup" | "dropoff") => {
+        setFormData(p => ({ ...p, [field]: address }));
+        setCoords(p => ({ ...p, [field]: [lat, lon] }));
+        setShowMap(true);
+        setActiveField(field);
+    };
+
+    const reverseGeocode = async (lat: number, lon: number) => {
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+            const data = await res.json();
+            return data.display_name;
+        } catch (err) {
+            console.error(err);
+            return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+        }
+    };
+
+    const handleMapClick = async (lat: number, lon: number) => {
+        const field = activeField || "pickup";
+        setCoords(p => ({ ...p, [field]: [lat, lon] }));
+        const address = await reverseGeocode(lat, lon);
+        setFormData(p => ({ ...p, [field]: address }));
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -159,6 +256,9 @@ export function BookingWidget() {
         }
     };
 
+    const defaultCenter: [number, number] = [53.4808, -2.2426]; // Manchester
+    const mapCenter = activeField && coords[activeField] ? coords[activeField] as [number, number] : (coords.pickup || defaultCenter);
+
     return (
         <div className="bg-white/5 border border-white/10 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-visible rounded-2xl">
             {/* Header Area */}
@@ -174,6 +274,48 @@ export function BookingWidget() {
 
             <div className="p-6 md:p-8">
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Map Toggle Button */}
+                    <div className="flex justify-end mb-2">
+                         <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setShowMap(!showMap)}
+                            className="bg-pink-500/10 border-pink-500/30 text-pink-300 hover:bg-pink-500/20 flex gap-2 items-center"
+                         >
+                            {showMap ? <><X className="w-4 h-4" /> Hide Map</> : <><MapIcon className="w-4 h-4" /> Show Map selection</>}
+                         </Button>
+                    </div>
+
+                    {/* Interactive Map Area */}
+                    {showMap && (
+                        <div className="w-full h-[300px] mb-6 rounded-2xl overflow-hidden border border-pink-500/30 shadow-2xl relative z-10">
+                            <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+                                <TileLayer
+                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                />
+                                <ChangeView center={mapCenter} zoom={13} />
+                                <MapEvents onMapClick={handleMapClick} />
+                                
+                                {coords.pickup && (
+                                    <Marker position={coords.pickup} icon={pickupIcon}>
+                                        <Popup className="custom-popup">Pick-up Location</Popup>
+                                    </Marker>
+                                )}
+                                
+                                {coords.dropoff && (
+                                    <Marker position={coords.dropoff} icon={dropoffIcon}>
+                                        <Popup className="custom-popup">Drop-off Location</Popup>
+                                    </Marker>
+                                )}
+                            </MapContainer>
+                            <div className="absolute top-4 right-4 z-[1000] bg-black/60 backdrop-blur-md p-2 rounded-lg text-[10px] text-pink-300 pointer-events-none border border-pink-500/20">
+                                Click on map to select {activeField || 'pickup'}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Return Toggle */}
                     <div className="flex items-center justify-end mb-4">
                         <label className="flex items-center gap-3 cursor-pointer group">
@@ -239,6 +381,7 @@ export function BookingWidget() {
                                 name="pickup"
                                 value={formData.pickup}
                                 onChange={handleFieldChange}
+                                onLocationSelect={(lat, lon, addr) => handleLocationSelect(lat, lon, addr, "pickup")}
                                 placeholder="Start typing address or postcode..."
                                 icon={MapPin}
                             />
@@ -255,6 +398,7 @@ export function BookingWidget() {
                                 name="dropoff"
                                 value={formData.dropoff}
                                 onChange={handleFieldChange}
+                                onLocationSelect={(lat, lon, addr) => handleLocationSelect(lat, lon, addr, "dropoff")}
                                 placeholder="Start typing destination..."
                                 icon={MapPin}
                             />
