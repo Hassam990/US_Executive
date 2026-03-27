@@ -16,7 +16,7 @@ export function Admin() {
         e.preventDefault();
         setStatus("loading");
         try {
-            const res = await fetch("http://localhost:5000/api/admin/login", {
+            const res = await fetch("/api/admin/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ password })
@@ -38,7 +38,7 @@ export function Admin() {
 
     const fetchDashboard = async () => {
         try {
-            const res = await fetch("http://localhost:5000/api/admin/dashboard", {
+            const res = await fetch("/api/admin/dashboard", {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             if (res.ok) {
@@ -60,7 +60,7 @@ export function Admin() {
 
     const markCompleted = async (id: number) => {
         try {
-            await fetch(`http://localhost:5000/api/admin/bookings/${id}/complete`, {
+            await fetch(`/api/admin/bookings/${id}/complete`, {
                 method: "POST",
                 headers: { "Authorization": `Bearer ${token}` }
             });
@@ -97,7 +97,7 @@ export function Admin() {
     const handleGoogleResponse = async (response: any) => {
         setStatus("loading");
         try {
-            const res = await fetch("http://localhost:5000/api/admin/google-login", {
+            const res = await fetch("/api/admin/google-login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ credential: response.credential })

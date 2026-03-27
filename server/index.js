@@ -150,6 +150,57 @@ ${message}
     }
 });
 
+app.post('/api/apply', async (req, res) => {
+    try {
+        const { name, email, phone, license, vehicle, experience } = req.body;
+
+        // Save to Database
+        await db.run(
+            `INSERT INTO drivers (name, email, phone, license, vehicle, experience) VALUES (?, ?, ?, ?, ?, ?)`,
+            [name, email, phone, license, vehicle, experience]
+        );
+
+        const mailBody = `
+NEW DRIVER APPLICATION RECEIVED
+========================================
+DRIVER DETAILS:
+- Name: ${name}
+- Email: ${email}
+- Phone: ${phone}
+
+PROFESSIONAL INFO:
+- PHV License: ${license}
+- Vehicle: ${vehicle}
+
+EXPERIENCE / BIO:
+${experience}
+========================================
+        `;
+
+        const receiver = process.env.NODE_ENV === 'development' 
+            ? process.env.TEST_EMAIL_RECEIVER 
+            : (process.env.EMAIL_RECEIVER || 'hello@us-executivetravel.com');
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
+            to: receiver,
+            subject: `NEW DRIVER APPLICATION: ${name}`,
+            text: mailBody
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+        } catch (mailError) {
+            console.warn("Mail transport failed. Data saved to SQLite successfully.");
+        }
+
+        res.status(200).json({ success: true, message: "Application received successfully." });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: "Failed to submit application." });
+    }
+});
+
 // Admin Auth
 app.post('/api/admin/login', (req, res) => {
     const { password } = req.body;
@@ -257,6 +308,16 @@ app.post('/api/admin/google-login', async (req, res) => {
                 email TEXT,
                 phone TEXT,
                 message TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS drivers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                email TEXT,
+                phone TEXT,
+                license TEXT,
+                vehicle TEXT,
+                experience TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
             CREATE TABLE IF NOT EXISTS analytics (

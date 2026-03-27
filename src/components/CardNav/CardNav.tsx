@@ -201,6 +201,11 @@ const CardNav: React.FC<CardNavProps> = ({
             </Link>
           </div>
 
+          <div className="card-nav-top-links">
+            <Link to="/apply" className="card-nav-link-secondary">Apply as Driver</Link>
+            <Link to="/login" className="card-nav-link-secondary">Login</Link>
+          </div>
+
           <Link to="/">
             <button
               type="button"

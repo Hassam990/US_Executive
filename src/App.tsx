@@ -7,11 +7,13 @@ import { Services } from "./pages/Services";
 import { Fleet } from "./pages/Fleet";
 import { Contact } from "./pages/Contact";
 import { Admin } from "./pages/Admin";
+import { DriverApply } from "./pages/DriverApply";
+import { Login } from "./pages/Login";
 
 // Tracking Hook
 function usePageTracking() {
   useEffect(() => {
-    fetch("http://localhost:5000/api/track-visit", { method: "POST" })
+    fetch("/api/track-visit", { method: "POST" })
       .catch(() => console.warn("Analytics ping failed"));
   }, []);
 }
@@ -39,6 +41,8 @@ function App() {
 
       {/* Admin Route - Isolated from public layout components */}
       <Route path="/admin" element={<Admin />} />
+      <Route path="/apply" element={<PublicLayout><DriverApply /></PublicLayout>} />
+      <Route path="/login" element={<Login />} />
     </Routes>
   );
 }
