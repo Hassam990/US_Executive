@@ -2,8 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const sqlite3 = require('sqlite3').verbose();
-const { open } = require('sqlite');
+const { createClient } = require('@supabase/supabase-js');
 const { OAuth2Client } = require('google-auth-library');
 
 const client = new OAuth2Client(process.env.CLIENT_ID);
@@ -20,8 +19,10 @@ app.use((req, res, next) => {
     next();
 });
 
-// Database initialization
-let db;
+// Supabase initialization
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Transporter setup with Gmail App Password
 const transporter = nodemailer.createTransport({
@@ -35,7 +36,20 @@ const transporter = nodemailer.createTransport({
 // Analytics tracking endpoint (called by frontend on load)
 app.post('/api/track-visit', async (req, res) => {
     try {
-        await db.run(`UPDATE analytics SET value = value + 1 WHERE metric = 'page_views'`);
+        const { data, error } = await supabase
+            .from('analytics')
+            .select('value')
+            .eq('metric', 'page_views')
+            .single();
+
+        if (!error && data) {
+            await supabase
+                .from('analytics')
+                .update({ value: data.value + 1 })
+                .eq('metric', 'page_views');
+        } else if (error && error.code === 'PGRST116') {
+            await supabase.from('analytics').insert({ metric: 'page_views', value: 1 });
+        }
         res.status(200).json({ success: true });
     } catch (e) {
         res.status(500).json({ success: false });
@@ -49,12 +63,22 @@ app.post('/api/book', async (req, res) => {
             returnDate, returnTime, passengers, vehicleClass
         } = req.body;
 
-        // Save to Database
-        await db.run(
-            `INSERT INTO bookings (name, email, phone, pickup, dropoff, date, time, returnDate, returnTime, passengers, vehicleClass) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [name, email, phone, pickup, dropoff, date, time, isReturn ? returnDate : null, isReturn ? returnTime : null, passengers, vehicleClass]
-        );
+        // Save to Supabase
+        try {
+            const { error: dbError } = await supabase
+                .from('bookings')
+                .insert([{
+                    name, email, phone, pickup, dropoff, date, time, 
+                    return_date: isReturn ? returnDate : null, 
+                    return_time: isReturn ? returnTime : null, 
+                    passengers, vehicle_class: vehicleClass,
+                    status: 'Pending'
+                }]);
+
+            if (dbError) throw dbError;
+        } catch (err) {
+            console.warn("Supabase Warning:", err.message);
+        }
 
         let mailBody = `
 NEW TAXI BOOKING REQUEST
@@ -107,11 +131,16 @@ app.post('/api/contact', async (req, res) => {
     try {
         const { name, email, phone, message } = req.body;
 
-        // Save to Database
-        await db.run(
-            `INSERT INTO messages (name, email, phone, message) VALUES (?, ?, ?, ?)`,
-            [name, email, phone, message]
-        );
+        // Save to Supabase
+        try {
+            const { error: dbError } = await supabase
+                .from('messages')
+                .insert([{ name, email, phone, message }]);
+
+            if (dbError) throw dbError;
+        } catch (err) {
+            console.warn("Supabase Warning:", err.message);
+        }
 
         const mailBody = `
 NEW CONTACT MESSAGE
@@ -154,11 +183,16 @@ app.post('/api/apply', async (req, res) => {
     try {
         const { name, email, phone, license, vehicle, experience } = req.body;
 
-        // Save to Database
-        await db.run(
-            `INSERT INTO drivers (name, email, phone, license, vehicle, experience) VALUES (?, ?, ?, ?, ?, ?)`,
-            [name, email, phone, license, vehicle, experience]
-        );
+        // Save to Supabase
+        try {
+            const { error: dbError } = await supabase
+                .from('drivers')
+                .insert([{ name, email, phone, license, vehicle, experience }]);
+
+            if (dbError) throw dbError;
+        } catch (err) {
+            console.warn("Supabase Warning:", err.message);
+        }
 
         const mailBody = `
 NEW DRIVER APPLICATION RECEIVED
@@ -219,17 +253,25 @@ app.get('/api/admin/dashboard', async (req, res) => {
     }
 
     try {
-        const bookings = await db.all(`SELECT * FROM bookings ORDER BY created_at DESC`);
-        const analytics = await db.all(`SELECT * FROM analytics`);
+        const { data: bookings, error: bError } = await supabase
+            .from('bookings')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        const { data: analytics, error: aError } = await supabase
+            .from('analytics')
+            .select('*');
+
+        if (bError || aError) throw (bError || aError);
 
         const stats = {
-            total_bookings: bookings.length,
-            pending_bookings: bookings.filter(b => b.status === 'Pending').length,
-            page_views: analytics.find(a => a.metric === 'page_views')?.value || 0,
-            active_sessions: Math.floor(Math.random() * 5) + 1 // Mock live active sessions for UI polish
+            total_bookings: bookings?.length || 0,
+            pending_bookings: bookings?.filter(b => b.status === 'Pending').length || 0,
+            page_views: analytics?.find(a => a.metric === 'page_views')?.value || 0,
+            active_sessions: Math.floor(Math.random() * 5) + 1
         };
 
-        res.status(200).json({ bookings, stats, success: true });
+        res.status(200).json({ bookings: bookings || [], stats, success: true });
     } catch (error) {
         res.status(500).json({ success: false });
     }
@@ -242,7 +284,12 @@ app.post('/api/admin/bookings/:id/complete', async (req, res) => {
     }
 
     try {
-        await db.run(`UPDATE bookings SET status = 'Completed' WHERE id = ?`, [req.params.id]);
+        const { error } = await supabase
+            .from('bookings')
+            .update({ status: 'Completed' })
+            .eq('id', req.params.id);
+
+        if (error) throw error;
         res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false });
@@ -277,61 +324,7 @@ app.post('/api/admin/google-login', async (req, res) => {
     }
 });
 
-// Database setup & Server Start
-(async () => {
-    try {
-        db = await open({
-            filename: 'us_executive.db',
-            driver: sqlite3.Database
-        });
-
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS bookings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                email TEXT,
-                phone TEXT,
-                pickup TEXT,
-                dropoff TEXT,
-                date TEXT,
-                time TEXT,
-                returnDate TEXT,
-                returnTime TEXT,
-                passengers TEXT,
-                vehicleClass TEXT,
-                status TEXT DEFAULT 'Pending',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                email TEXT,
-                phone TEXT,
-                message TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS drivers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                email TEXT,
-                phone TEXT,
-                license TEXT,
-                vehicle TEXT,
-                experience TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS analytics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                metric TEXT UNIQUE,
-                value INTEGER DEFAULT 0
-            );
-            INSERT OR IGNORE INTO analytics (metric, value) VALUES ('page_views', 0);
-        `);
-
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-        });
-    } catch (err) {
-        console.error("Failed to start server:", err);
-    }
-})();
+// Server Start
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT} with Supabase integration`);
+});

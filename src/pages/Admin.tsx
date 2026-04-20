@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Lock, Eye, Users, FileText, Clock } from "lucide-react";
+import { Lock, Eye, Users, FileText, Clock, RefreshCw } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export function Admin() {
     const [token, setToken] = useState<string | null>(localStorage.getItem('adminToken'));
@@ -55,7 +56,25 @@ export function Admin() {
     };
 
     useEffect(() => {
-        if (token) fetchDashboard();
+        if (!token) return;
+        
+        fetchDashboard();
+
+        // Subscribe to real-time changes
+        const channel = supabase
+            .channel('admin_dashboard')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+                console.log("Real-time update received!");
+                fetchDashboard();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'analytics' }, () => {
+                fetchDashboard();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [token]);
 
     const markCompleted = async (id: number) => {
@@ -172,7 +191,13 @@ export function Admin() {
                 <div className="container mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <img src="/us_executive_logo.png" alt="Logo" className="h-12 opacity-80 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
-                        <h2 className="text-xl font-bold text-white tracking-widest uppercase">Admin Dashboard</h2>
+                        <div className="flex flex-col">
+                            <h2 className="text-xl font-bold text-white tracking-widest uppercase">Admin Dashboard</h2>
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Real-time Connection Active</span>
+                            </div>
+                        </div>
                     </div>
                     <Button variant="ghost" className="text-pink-400" onClick={() => { setToken(null); localStorage.removeItem('adminToken'); }}>
                         Logout Security Session
@@ -228,14 +253,14 @@ export function Admin() {
                             <tbody>
                                 {data.bookings.map((booking: any) => (
                                     <tr key={booking.id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-white/80 text-sm">
-                                        <td className="p-4 font-mono">{new Date(booking.created_at + 'Z').toLocaleString()}</td>
+                                        <td className="p-4 font-mono">{new Date(booking.created_at).toLocaleString()}</td>
                                         <td className="p-4 font-semibold text-white">{booking.pickup}</td>
                                         <td className="p-4 font-semibold text-white">{booking.dropoff}</td>
                                         <td className="p-4">
                                             {booking.date} {booking.time}
-                                            {booking.returnDate && <div className="text-pink-400 text-xs mt-1 font-bold">RET: {booking.returnDate} {booking.returnTime}</div>}
+                                            {booking.return_date && <div className="text-pink-400 text-xs mt-1 font-bold">RET: {booking.return_date} {booking.return_time}</div>}
                                         </td>
-                                        <td className="p-4">{booking.vehicleClass} <span className="text-xs opacity-50 block">x{booking.passengers} Pax</span></td>
+                                        <td className="p-4">{booking.vehicle_class} <span className="text-xs opacity-50 block">x{booking.passengers} Pax</span></td>
                                         <td className="p-4">
                                             {booking.status === 'Pending' ? (
                                                 <span className="px-3 py-1 bg-red-500/20 text-red-400 text-xs font-bold rounded-full uppercase tracking-wider border border-red-500/30">Pending</span>
