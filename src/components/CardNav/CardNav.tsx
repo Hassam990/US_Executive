@@ -82,7 +82,8 @@ const CardNav: React.FC<CardNavProps> = ({
 
     // Global click listener to close user menu when clicking outside
     const handleClickOutside = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('.user-profile-dropdown')) {
+      const target = e.target as HTMLElement;
+      if (target && target.closest && !target.closest('.user-profile-dropdown')) {
         setIsUserMenuOpen(false);
       }
     };
@@ -279,8 +280,8 @@ const CardNav: React.FC<CardNavProps> = ({
                   }`}
                 >
                   <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shrink-0 bg-black/40">
-                    {user.picture ? (
-                      <img src={user.picture} alt={user.name} className="w-full h-full object-cover" />
+                    {user && user.picture ? (
+                      <img src={user.picture} alt={user.name || "User"} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <User className="w-4 h-4 text-pink-500" />
@@ -288,12 +289,12 @@ const CardNav: React.FC<CardNavProps> = ({
                     )}
                   </div>
                   <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isUserMenuOpen ? 'text-white' : 'text-white/70'}`}>
-                    {user.name?.split(' ')[0]}
+                    {(user && user.name) ? user.name.split(' ')[0] : "Account"}
                   </span>
                   <ChevronDown className={`w-3 h-3 transition-all ${isUserMenuOpen ? 'rotate-180 text-white' : 'text-white/30'}`} />
                 </button>
 
-                {isUserMenuOpen && (
+                {isUserMenuOpen && user && (
                   <>
                     <div 
                       className="fixed inset-0 z-[125] cursor-default" 
@@ -304,8 +305,8 @@ const CardNav: React.FC<CardNavProps> = ({
                     />
                     <div className="absolute right-0 mt-3 w-56 bg-black/95 backdrop-blur-3xl border border-white/10 rounded-[1.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[150] animate-in fade-in slide-in-from-top-3 duration-300 ease-out">
                       <div className="p-4 border-b border-white/5 bg-gradient-to-br from-white/5 to-transparent">
-                        <p className="text-[11px] font-black text-pink-500 uppercase tracking-widest truncate mb-0.5">{user.name}</p>
-                        <p className="text-[9px] text-white/30 font-medium truncate">{user.email}</p>
+                        <p className="text-[11px] font-black text-pink-500 uppercase tracking-widest truncate mb-0.5">{user.name || "User Account"}</p>
+                        <p className="text-[9px] text-white/30 font-medium truncate">{user.email || "No email provided"}</p>
                       </div>
                       <div className="p-2">
                         <Link 

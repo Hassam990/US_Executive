@@ -21,19 +21,23 @@ export function Login() {
         document.head.appendChild(script);
 
         script.onload = () => {
-             const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "816912441965-ue09q6u0sfc0h8sl6404vpr269rjlaqp.apps.googleusercontent.com";
-             console.log("Google SDK Loaded, initializing with ID:", clientId.substring(0, 10) + "...");
-             
-             // @ts-expect-error google is global
-            google.accounts.id.initialize({
-                client_id: clientId,
-                callback: handleGoogleResponse
-            });
-             // @ts-expect-error google is global
-            google.accounts.id.renderButton(
-                document.getElementById("googleBtn"),
-                { theme: "filled_blue", size: "large", width: "100%", shape: "pill", text: "signin_with" }
-            );
+             try {
+                const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "816912441965-ue09q6u0sfc0h8sl6404vpr269rjlaqp.apps.googleusercontent.com";
+                console.log("Google SDK Loaded, initializing with ID:", clientId.substring(0, 10) + "...");
+                
+                // @ts-expect-error google is global
+                google.accounts.id.initialize({
+                    client_id: clientId,
+                    callback: handleGoogleResponse
+                });
+                // @ts-expect-error google is global
+                google.accounts.id.renderButton(
+                    document.getElementById("googleBtn"),
+                    { theme: "filled_blue", size: "large", width: "100%", shape: "pill", text: "signin_with" }
+                );
+             } catch (err) {
+                console.error("Google SDK Initialization Error:", err);
+             }
         };
         return () => { try { document.head.removeChild(script); } catch { /* ignore */ } };
     }, []);
