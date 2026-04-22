@@ -34,6 +34,15 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    console.log("App Initialized - Live Debugging Active");
+    console.log("Environment Status:", {
+      isDev: import.meta.env.DEV,
+      mode: import.meta.env.MODE,
+      hasGoogleId: !!import.meta.env.VITE_GOOGLE_CLIENT_ID
+    });
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
