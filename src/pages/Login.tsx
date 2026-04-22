@@ -43,42 +43,43 @@ export function Login() {
     }, []);
 
     const handleGoogleResponse = async (response: any) => {
-        console.log("Google Login Response Received:", response ? "Yes" : "No");
+        console.log("Google Login Response Received from SDK");
         setStatus("loading");
         setError("");
         try {
+            console.log("Sending credential to backend...");
             const res = await fetch("/api/admin/google-login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ credential: response.credential })
             });
-            console.log("Google Auth Response status:", res.status);
+            
+            console.log("Backend Response Status:", res.status);
             const result = await res.json();
-            console.log("Google Auth Result:", result);
+            console.log("Backend Response Data:", result);
 
             if (res.ok && result.success) {
+                console.log("Google Login Success, redirecting...");
                 localStorage.setItem('adminToken', result.token);
                 localStorage.setItem('userRole', result.role);
                 
                 if (result.user) {
                     localStorage.setItem('userData', JSON.stringify(result.user));
                 } else {
-                    localStorage.setItem('userData', JSON.stringify({ email: email || 'user@example.com', name: (email || 'user@example.com').split('@')[0] }));
+                    localStorage.setItem('userData', JSON.stringify({ email: 'user@example.com', name: 'User' }));
                 }
                 
-                if (result.role === 'admin') {
-                    window.dispatchEvent(new Event('auth-change'));
-                    navigate("/admin");
-                } else {
-                    window.dispatchEvent(new Event('auth-change'));
-                    navigate("/dashboard");
-                }
+                window.dispatchEvent(new Event('auth-change'));
+                
+                if (result.role === 'admin') navigate("/admin");
+                else navigate("/dashboard");
             } else {
-                setError(result.message || "Unauthorized Login");
+                console.warn("Google Auth Backend Failed:", result.message);
+                setError(result.message || "Google auth failed. Please check your connection.");
             }
         } catch (err) {
-            console.error("Google Auth Error:", err);
-            setError("Google auth failed. Please check your connection.");
+            console.error("Google Auth Network/Fetch Error:", err);
+            setError("Google auth failed. Could not connect to the server.");
         } finally {
             setStatus("idle");
         }

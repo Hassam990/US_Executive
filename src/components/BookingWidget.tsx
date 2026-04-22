@@ -234,6 +234,7 @@ export function BookingWidget() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log("Booking submission started", { isReturn, ...formData });
         setStatus("loading");
 
         try {
@@ -243,15 +244,19 @@ export function BookingWidget() {
                 body: JSON.stringify({ isReturn, ...formData })
             });
 
+            console.log("Booking API Response status:", response.status);
+
             if (response.ok) {
+                const data = await response.json();
+                console.log("Booking Success:", data);
                 setStatus("success");
             } else {
                 const errData = await response.json().catch(() => ({}));
-                console.error("Server error:", errData);
+                console.error("Server error details:", errData);
                 setStatus("error");
             }
         } catch (error) {
-            console.error("Network error:", error);
+            console.error("Booking Network error:", error);
             setStatus("error");
         }
     };
@@ -502,8 +507,14 @@ export function BookingWidget() {
                     </div>
 
                     <Button type="submit" disabled={status === "loading" || status === "success"} className="w-full h-16 mt-4 bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 text-white font-black text-xl tracking-wide rounded-xl shadow-[0_10px_30px_rgba(236,72,153,0.4)] transition-all hover:scale-[1.02] border-b-4 border-pink-800 uppercase">
-                        {status === "loading" ? "Calculating..." : status === "success" ? "Quote Sent!" : "Get Quote / Book Taxi"}
+                        {status === "loading" ? "Processing..." : status === "success" ? "Booking Received!" : "Get Quote / Book Taxi"}
                     </Button>
+
+                    {status === "error" && (
+                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center mt-4">
+                            <p className="text-red-400 text-sm font-bold">Failed to send booking request. Please check your connection or try again.</p>
+                        </div>
+                    )}
 
                     {status === "success" && (
                         <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
