@@ -7,8 +7,10 @@ import { Services } from "./pages/Services";
 import { Fleet } from "./pages/Fleet";
 import { Contact } from "./pages/Contact";
 import { Admin } from "./pages/Admin";
+import { Dashboard } from "./pages/Dashboard";
 import { DriverApply } from "./pages/DriverApply";
 import { Login } from "./pages/Login";
+import { Signup } from "./pages/Signup";
 
 // Tracking Hook
 function usePageTracking() {
@@ -41,8 +43,10 @@ function App() {
 
       {/* Admin Route - Isolated from public layout components */}
       <Route path="/admin" element={<Admin />} />
+      <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/apply" element={<PublicLayout><DriverApply /></PublicLayout>} />
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
     </Routes>
   );
 }

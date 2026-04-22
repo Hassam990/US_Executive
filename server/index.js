@@ -4,7 +4,9 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const { OAuth2Client } = require('google-auth-library');
+const jwt = require('jsonwebtoken');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-123';
 const client = new OAuth2Client(process.env.CLIENT_ID);
 
 const app = express();
@@ -12,6 +14,22 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// Auth Middleware
+const authenticateAdmin = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.admin = decoded;
+        next();
+    } catch (err) {
+        return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+};
 
 // Request logger
 app.use((req, res, next) => {
@@ -235,21 +253,51 @@ ${experience}
     }
 });
 
-// Admin Auth
+// User Signup
+app.post('/api/admin/signup', (req, res) => {
+    const { name, email, password } = req.body;
+    const adminEmail = 'hassamazam999@gmail.com';
+    
+    // In a real app, you would save this to a 'users' table in Supabase
+    // For now, we'll assign the role based on the email
+    const role = (email === adminEmail) ? 'admin' : 'user';
+    
+    // Log signup attempt
+    console.log(`New Signup: ${name} (${email}) - Role: ${role}`);
+    
+    const token = jwt.sign({ role, email, name }, JWT_SECRET, { expiresIn: '24h' });
+    res.status(200).json({ token, role, success: true });
+});
+
+// Admin & User Auth
 app.post('/api/admin/login', (req, res) => {
-    const { password } = req.body;
-    if (password === 'admin123') {
-        res.status(200).json({ token: 'mock-jwt-token-123', success: true });
+    console.log("Login Request Received:", req.body);
+    const { email, password } = req.body;
+    const adminEmail = 'hassamazam999@gmail.com';
+    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+    
+    console.log(`Checking against Admin: ${adminEmail}, Password: ${adminPass}`);
+    
+    if (email === adminEmail && password === adminPass) {
+        console.log("Admin Login Success");
+        const token = jwt.sign({ role: 'admin', email }, JWT_SECRET, { expiresIn: '24h' });
+        return res.status(200).json({ token, role: 'admin', success: true });
+    } else if (password === 'user123') { 
+        console.log("User Login Success (Demo Pass)");
+        const token = jwt.sign({ role: 'user', email }, JWT_SECRET, { expiresIn: '24h' });
+        return res.status(200).json({ token, role: 'user', success: true });
     } else {
+        console.log("Login Denied: Invalid Credentials");
         res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 });
 
-// Admin Dashboard Data
-app.get('/api/admin/dashboard', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== 'Bearer mock-jwt-token-123') {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
+// Admin Dashboard Data (Strict Admin Only)
+app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
+    // Strict Admin Email Check
+    const adminEmail = 'hassamazam999@gmail.com';
+    if (req.admin.role !== 'admin' || (req.admin.email && req.admin.email !== adminEmail)) {
+        return res.status(403).json({ success: false, message: 'Forbidden: Admin access only' });
     }
 
     try {
@@ -258,35 +306,90 @@ app.get('/api/admin/dashboard', async (req, res) => {
             .select('*')
             .order('created_at', { ascending: false });
 
+        const { data: messages, error: mError } = await supabase
+            .from('messages')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        const { data: drivers, error: dError } = await supabase
+            .from('drivers')
+            .select('*')
+            .order('created_at', { ascending: false });
+
         const { data: analytics, error: aError } = await supabase
             .from('analytics')
             .select('*');
 
-        if (bError || aError) throw (bError || aError);
+        if (bError || mError || dError || aError) throw (bError || mError || dError || aError);
 
         const stats = {
             total_bookings: bookings?.length || 0,
             pending_bookings: bookings?.filter(b => b.status === 'Pending').length || 0,
+            total_messages: messages?.length || 0,
+            total_drivers: drivers?.length || 0,
             page_views: analytics?.find(a => a.metric === 'page_views')?.value || 0,
             active_sessions: Math.floor(Math.random() * 5) + 1
         };
 
-        res.status(200).json({ bookings: bookings || [], stats, success: true });
+        res.status(200).json({ 
+            bookings: bookings || [], 
+            messages: messages || [], 
+            drivers: drivers || [],
+            stats, 
+            success: true 
+        });
+    } catch (error) {
+        console.error("Dashboard error:", error);
+        res.status(500).json({ success: false });
+    }
+});
+
+// User Dashboard Data (Bookings for specific user)
+app.get('/api/user/dashboard', authenticateAdmin, async (req, res) => {
+    try {
+        const userEmail = req.admin.email;
+        if (!userEmail) {
+            return res.status(400).json({ success: false, message: 'User email not found in token' });
+        }
+
+        const { data: bookings, error: bError } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('email', userEmail)
+            .order('created_at', { ascending: false });
+
+        if (bError) throw bError;
+
+        res.status(200).json({ 
+            bookings: bookings || [], 
+            success: true 
+        });
+    } catch (error) {
+        console.error("User Dashboard error:", error);
+        res.status(500).json({ success: false });
+    }
+});
+
+app.post('/api/admin/bookings/:id/status', authenticateAdmin, async (req, res) => {
+    try {
+        const { status } = req.body;
+        const { error } = await supabase
+            .from('bookings')
+            .update({ status })
+            .eq('id', req.params.id);
+
+        if (error) throw error;
+        res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false });
     }
 });
 
-app.post('/api/admin/bookings/:id/complete', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== 'Bearer mock-jwt-token-123') {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
+app.delete('/api/admin/bookings/:id', authenticateAdmin, async (req, res) => {
     try {
         const { error } = await supabase
             .from('bookings')
-            .update({ status: 'Completed' })
+            .delete()
             .eq('id', req.params.id);
 
         if (error) throw error;
@@ -299,27 +402,36 @@ app.post('/api/admin/bookings/:id/complete', async (req, res) => {
 // Google Login Verification
 app.post('/api/admin/google-login', async (req, res) => {
     const { credential } = req.body;
+    console.log(`Google Login Attempt - Token received: ${credential ? 'Yes' : 'No'}`);
+    
     try {
+        if (!process.env.CLIENT_ID) {
+            console.error("Backend Error: CLIENT_ID is not defined in environment variables.");
+            return res.status(500).json({ success: false, message: 'Server configuration error' });
+        }
+
         const ticket = await client.verifyIdToken({
             idToken: credential,
             audience: process.env.CLIENT_ID,
         });
         const payload = ticket.getPayload();
         const email = payload['email'];
+        console.log(`Google Login Success - User: ${email}`);
 
-        // Whitelist Check (Only allow authorized admin email)
-        const authorizedEmail = process.env.EMAIL_USER || 'hello@us-executivetravel.com';
-        if (email === authorizedEmail) {
-            res.status(200).json({ 
-                success: true, 
-                token: 'mock-jwt-token-123', // Same mock token as password login
-                user: { name: payload['name'], email: payload['email'], picture: payload['picture'] }
-            });
-        } else {
-            res.status(401).json({ success: false, message: 'Unauthorized Google Account' });
-        }
+        // Role Logic
+        const adminEmail = 'hassamazam999@gmail.com';
+        const role = (email === adminEmail) ? 'admin' : 'user';
+        
+        const token = jwt.sign({ role, email }, JWT_SECRET, { expiresIn: '24h' });
+        
+        res.status(200).json({ 
+            success: true, 
+            token,
+            role,
+            user: { name: payload['name'], email: payload['email'], picture: payload['picture'] }
+        });
     } catch (error) {
-        console.error("Google verify error", error);
+        console.error("Google verify error:", error.message);
         res.status(400).json({ success: false, message: 'Invalid Google Token' });
     }
 });

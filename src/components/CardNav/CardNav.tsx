@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { GoArrowUpRight } from 'react-icons/go';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { LogOut, User, FileText, ChevronDown } from 'lucide-react';
 import './CardNav.css';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -45,10 +46,63 @@ const CardNav: React.FC<CardNavProps> = ({
 }) => {
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  
   const location = useLocation();
+  const navigate = useNavigate();
   const navRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
   const tlRef = useRef<gsap.core.Timeline | null>(null);
+
+  useEffect(() => {
+    const checkUser = () => {
+      const userData = localStorage.getItem('userData');
+      const token = localStorage.getItem('adminToken');
+      console.log("CardNav Auth Sync - Token:", !!token, "User:", userData ? "Found" : "Missing");
+      
+      if (userData && token) {
+        try {
+          setUser(JSON.parse(userData));
+        } catch (e) {
+          console.error("Auth Data Parse Error:", e);
+          setUser(null);
+        }
+      } else {
+        setUser(null);
+      }
+    };
+
+    checkUser();
+    
+    // Custom event listener for same-tab updates
+    const handleAuthChange = () => checkUser();
+    window.addEventListener('auth-change', handleAuthChange);
+    window.addEventListener('storage', checkUser);
+
+    // Global click listener to close user menu when clicking outside
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.user-profile-dropdown')) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    window.addEventListener('click', handleClickOutside);
+    
+    return () => {
+      window.removeEventListener('auth-change', handleAuthChange);
+      window.removeEventListener('storage', checkUser);
+      window.removeEventListener('click', handleClickOutside);
+    };
+  }, [location.pathname]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userData');
+    setUser(null);
+    setIsUserMenuOpen(false);
+    navigate('/login');
+  };
 
   const calculateHeight = () => {
     const navEl = navRef.current;
@@ -90,10 +144,15 @@ const CardNav: React.FC<CardNavProps> = ({
     const navEl = navRef.current;
     if (!navEl) return null;
 
-    gsap.set(navEl, { height: 60, overflow: 'hidden' });
+    // Set initial overflow to visible so dropdowns aren't clipped on load
+    gsap.set(navEl, { height: 60, overflow: 'visible' });
     gsap.set(cardsRef.current, { y: 50, opacity: 0 });
 
-    const tl = gsap.timeline({ paused: true });
+    const tl = gsap.timeline({ 
+      paused: true,
+      onStart: () => { gsap.set(navEl, { overflow: 'hidden' }); },
+      onReverseComplete: () => { gsap.set(navEl, { overflow: 'visible' }); }
+    });
 
     tl.to(navEl, {
       height: calculateHeight,
@@ -203,7 +262,79 @@ const CardNav: React.FC<CardNavProps> = ({
 
           <div className="card-nav-top-links">
             <Link to="/apply" className="card-nav-link-secondary">Apply as Driver</Link>
-            <Link to="/login" className="card-nav-link-secondary">Login</Link>
+            
+            {user ? (
+              <div className="relative user-profile-dropdown" style={{ zIndex: 130 }}>
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log("User menu button clicked, current state:", isUserMenuOpen);
+                    setIsUserMenuOpen(!isUserMenuOpen);
+                  }}
+                  className={`flex items-center gap-2 p-1 pr-3 rounded-full border transition-all cursor-pointer relative z-[140] ${
+                    isUserMenuOpen 
+                    ? 'bg-pink-600 border-pink-500 shadow-lg shadow-pink-600/20' 
+                    : 'bg-white/5 hover:bg-white/10 border-white/10'
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 shrink-0 bg-black/40">
+                    {user.picture ? (
+                      <img src={user.picture} alt={user.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <User className="w-4 h-4 text-pink-500" />
+                      </div>
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${isUserMenuOpen ? 'text-white' : 'text-white/70'}`}>
+                    {user.name?.split(' ')[0]}
+                  </span>
+                  <ChevronDown className={`w-3 h-3 transition-all ${isUserMenuOpen ? 'rotate-180 text-white' : 'text-white/30'}`} />
+                </button>
+
+                {isUserMenuOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-[125] cursor-default" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsUserMenuOpen(false);
+                      }}
+                    />
+                    <div className="absolute right-0 mt-3 w-56 bg-black/95 backdrop-blur-3xl border border-white/10 rounded-[1.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[150] animate-in fade-in slide-in-from-top-3 duration-300 ease-out">
+                      <div className="p-4 border-b border-white/5 bg-gradient-to-br from-white/5 to-transparent">
+                        <p className="text-[11px] font-black text-pink-500 uppercase tracking-widest truncate mb-0.5">{user.name}</p>
+                        <p className="text-[9px] text-white/30 font-medium truncate">{user.email}</p>
+                      </div>
+                      <div className="p-2">
+                        <Link 
+                          to={localStorage.getItem('userRole') === 'admin' ? "/admin" : "/dashboard"} 
+                          className="w-full flex items-center gap-3 px-4 py-3.5 text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-all"
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-pink-500/10 flex items-center justify-center">
+                            <FileText className="w-3.5 h-3.5 text-pink-500" />
+                          </div>
+                          View My Portal
+                        </Link>
+                        <button 
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-3.5 text-[10px] font-black uppercase tracking-widest text-red-400 hover:bg-red-400/10 rounded-xl transition-all mt-1"
+                        >
+                          <div className="w-6 h-6 rounded-lg bg-red-400/10 flex items-center justify-center">
+                            <LogOut className="w-3.5 h-3.5" />
+                          </div>
+                          Terminate Session
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <Link to="/login" className="card-nav-link-secondary">Login</Link>
+            )}
           </div>
 
           <Link to="/">
