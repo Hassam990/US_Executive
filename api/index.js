@@ -7,11 +7,16 @@ import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-123';
-const client = new OAuth2Client(process.env.CLIENT_ID);
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Request logger
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+});
 
 // Auth Middleware
 const authenticateAdmin = (req, res, next) => {
@@ -29,24 +34,51 @@ const authenticateAdmin = (req, res, next) => {
     }
 };
 
-// Request logger
-app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-    next();
-});
+// Lazy-loaded OAuth2Client to avoid crash on missing CLIENT_ID at startup
+const getGoogleClient = () => {
+    const cid = process.env.CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
+    if (!cid) {
+        console.error("CRITICAL: Missing CLIENT_ID or VITE_GOOGLE_CLIENT_ID environment variable.");
+        return null;
+    }
+    return new OAuth2Client(cid);
+};
 
-// Supabase initialization
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Supabase initialization with support for multiple naming conventions
+const getSupabase = () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!url || !key) {
+        console.error("CRITICAL: Missing Supabase URL or Key. Check Vercel Env Vars.");
+        return null;
+    }
+    return createClient(url, key);
+};
 
-// Transporter setup with Gmail App Password
+const supabase = getSupabase();
+
+// Transporter setup
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
         user: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
         pass: process.env.EMAIL_PASS
     }
+});
+
+// Diagnostic endpoint
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        msg: 'Serverless backend is alive!',
+        config: {
+            has_supabase: !!supabase,
+            has_google_cid: !!(process.env.CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID),
+            has_jwt_secret: !!process.env.JWT_SECRET,
+            node_env: process.env.NODE_ENV
+        }
+    });
 });
 
 // Helper for dynamic recipient
@@ -270,10 +302,17 @@ app.delete('/api/admin/bookings/:id', authenticateAdmin, async (req, res) => {
 // Google Login Verification
 app.post('/api/admin/google-login', async (req, res) => {
     const { credential } = req.body;
+    console.log("Serverless Google Login Attempt - Token length:", credential?.length);
+    
     try {
+        const client = getGoogleClient();
+        if (!client) {
+            return res.status(500).json({ success: false, message: 'Google Auth not configured on server (Missing CLIENT_ID)' });
+        }
+
         const ticket = await client.verifyIdToken({
             idToken: credential,
-            audience: process.env.CLIENT_ID,
+            audience: [process.env.CLIENT_ID, process.env.VITE_GOOGLE_CLIENT_ID].filter(Boolean),
         });
         const payload = ticket.getPayload();
         const email = payload['email'];
@@ -282,7 +321,8 @@ app.post('/api/admin/google-login', async (req, res) => {
         const token = jwt.sign({ role, email }, JWT_SECRET, { expiresIn: '24h' });
         res.status(200).json({ success: true, token, role, user: { name: payload['name'], email, picture: payload['picture'] } });
     } catch (error) {
-        res.status(400).json({ success: false, message: 'Invalid Google Token' });
+        console.error("Google verify error:", error.message);
+        res.status(400).json({ success: false, message: 'Google Verification Failed: ' + error.message });
     }
 });
 
