@@ -89,6 +89,8 @@ const getReceiver = () => process.env.NODE_ENV === 'development'
 // Analytics tracking endpoint (called by frontend on load)
 app.post('/api/track-visit', async (req, res) => {
     try {
+        if (!supabase) return res.status(200).json({ success: true, note: "Supabase not connected" });
+        
         const { data, error } = await supabase
             .from('analytics')
             .select('value')
@@ -116,20 +118,22 @@ app.post('/api/book', async (req, res) => {
             returnDate, returnTime, passengers, vehicleClass
         } = req.body;
 
-        try {
-            const { error: dbError } = await supabase
-                .from('bookings')
-                .insert([{
-                    name, email, phone, pickup, dropoff, date, time, 
-                    return_date: isReturn ? returnDate : null, 
-                    return_time: isReturn ? returnTime : null, 
-                    passengers, vehicle_class: vehicleClass,
-                    status: 'Pending'
-                }]);
+        if (supabase) {
+            try {
+                const { error: dbError } = await supabase
+                    .from('bookings')
+                    .insert([{
+                        name, email, phone, pickup, dropoff, date, time, 
+                        return_date: isReturn ? returnDate : null, 
+                        return_time: isReturn ? returnTime : null, 
+                        passengers, vehicle_class: vehicleClass,
+                        status: 'Pending'
+                    }]);
 
-            if (dbError) throw dbError;
-        } catch (dbError) {
-            console.warn("Supabase Write failed:", dbError.message);
+                if (dbError) throw dbError;
+            } catch (dbError) {
+                console.warn("Supabase Write failed:", dbError.message);
+            }
         }
 
         let mailBody = `NEW TAXI BOOKING REQUEST\n========================================\nCUSTOMER DETAILS:\n- Name: ${name}\n- Email: ${email}\n- Phone: ${phone}\n\nJOURNEY DETAILS:\n- Pick-up: ${pickup}\n- Drop-off: ${dropoff}\n- Date: ${date} at ${time}\n`;
@@ -158,13 +162,15 @@ app.post('/api/book', async (req, res) => {
 app.post('/api/contact', async (req, res) => {
     try {
         const { name, email, phone, message } = req.body;
-        try {
-            const { error: dbError } = await supabase
-                .from('messages')
-                .insert([{ name, email, phone, message }]);
-            if (dbError) throw dbError;
-        } catch (err) {
-            console.warn("Supabase Warning:", err.message);
+        if (supabase) {
+            try {
+                const { error: dbError } = await supabase
+                    .from('messages')
+                    .insert([{ name, email, phone, message }]);
+                if (dbError) throw dbError;
+            } catch (err) {
+                console.warn("Supabase Warning:", err.message);
+            }
         }
 
         const mailOptions = {
@@ -188,13 +194,15 @@ app.post('/api/contact', async (req, res) => {
 app.post('/api/apply', async (req, res) => {
     try {
         const { name, email, phone, license, vehicle, experience } = req.body;
-        try {
-            const { error: dbError } = await supabase
-                .from('drivers')
-                .insert([{ name, email, phone, license, vehicle, experience }]);
-            if (dbError) throw dbError;
-        } catch (err) {
-            console.warn("Supabase Warning:", err.message);
+        if (supabase) {
+            try {
+                const { error: dbError } = await supabase
+                    .from('drivers')
+                    .insert([{ name, email, phone, license, vehicle, experience }]);
+                if (dbError) throw dbError;
+            } catch (err) {
+                console.warn("Supabase Warning:", err.message);
+            }
         }
 
         const mailOptions = {
@@ -249,6 +257,10 @@ app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
         return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
+    if (!supabase) {
+        return res.status(500).json({ success: false, message: "Database not connected" });
+    }
+
     try {
         const { data: bookings } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
         const { data: messages } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
@@ -272,6 +284,9 @@ app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
 
 // User Dashboard Data
 app.get('/api/user/dashboard', authenticateAdmin, async (req, res) => {
+    if (!supabase) {
+        return res.status(500).json({ success: false, message: "Database not connected" });
+    }
     try {
         const { data: bookings } = await supabase.from('bookings').select('*').eq('email', req.admin.email).order('created_at', { ascending: false });
         res.status(200).json({ bookings: bookings || [], success: true });
@@ -281,6 +296,9 @@ app.get('/api/user/dashboard', authenticateAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/bookings/:id/status', authenticateAdmin, async (req, res) => {
+    if (!supabase) {
+        return res.status(500).json({ success: false, message: "Database not connected" });
+    }
     try {
         const { status } = req.body;
         await supabase.from('bookings').update({ status }).eq('id', req.params.id);
@@ -291,6 +309,9 @@ app.post('/api/admin/bookings/:id/status', authenticateAdmin, async (req, res) =
 });
 
 app.delete('/api/admin/bookings/:id', authenticateAdmin, async (req, res) => {
+    if (!supabase) {
+        return res.status(500).json({ success: false, message: "Database not connected" });
+    }
     try {
         await supabase.from('bookings').delete().eq('id', req.params.id);
         res.status(200).json({ success: true });
