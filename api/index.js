@@ -4,12 +4,30 @@ import cors from 'cors';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import { OAuth2Client } from 'google-auth-library';
+import jwt from 'jsonwebtoken';
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-123';
 const client = new OAuth2Client(process.env.CLIENT_ID);
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Auth Middleware
+const authenticateAdmin = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.admin = decoded;
+        next();
+    } catch (err) {
+        return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+};
 
 // Request logger
 app.use((req, res, next) => {
@@ -31,20 +49,6 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Diagnostic endpoint
-app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        msg: 'Serverless backend is alive!',
-        env: {
-            NODE_ENV: process.env.NODE_ENV,
-            VERCEL: process.env.VERCEL,
-            HAS_EMAIL_USER: !!process.env.EMAIL_USER,
-            HAS_EMAIL_PASS: !!process.env.EMAIL_PASS,
-        }
-    });
-});
-
 // Helper for dynamic recipient
 const getReceiver = () => process.env.NODE_ENV === 'development' 
     ? process.env.TEST_EMAIL_RECEIVER 
@@ -53,7 +57,6 @@ const getReceiver = () => process.env.NODE_ENV === 'development'
 // Analytics tracking endpoint (called by frontend on load)
 app.post('/api/track-visit', async (req, res) => {
     try {
-        // Simple increment in Supabase
         const { data, error } = await supabase
             .from('analytics')
             .select('value')
@@ -66,12 +69,10 @@ app.post('/api/track-visit', async (req, res) => {
                 .update({ value: data.value + 1 })
                 .eq('metric', 'page_views');
         } else if (error && error.code === 'PGRST116') {
-            // Metric doesn't exist, create it
             await supabase.from('analytics').insert({ metric: 'page_views', value: 1 });
         }
         res.status(200).json({ success: true });
     } catch (e) {
-        console.warn("Analytics error:", e.message);
         res.status(200).json({ success: true, fake: true });
     }
 });
@@ -96,31 +97,12 @@ app.post('/api/book', async (req, res) => {
 
             if (dbError) throw dbError;
         } catch (dbError) {
-            console.warn("Supabase Write failed, continuing to email:", dbError.message);
+            console.warn("Supabase Write failed:", dbError.message);
         }
 
-        let mailBody = `
-NEW TAXI BOOKING REQUEST
-========================================
-CUSTOMER DETAILS:
-- Name: ${name}
-- Email: ${email}
-- Phone: ${phone}
-
-JOURNEY DETAILS:
-- Pick-up: ${pickup}
-- Drop-off: ${dropoff}
-- Date: ${date} at ${time}
-`;
-        if (isReturn) {
-            mailBody += `- Return: ${returnDate} at ${returnTime}\n`;
-        }
-        mailBody += `
-REQUIREMENTS:
-- Passengers: ${passengers}
-- Vehicle: ${vehicleClass}
-========================================
-        `;
+        let mailBody = `NEW TAXI BOOKING REQUEST\n========================================\nCUSTOMER DETAILS:\n- Name: ${name}\n- Email: ${email}\n- Phone: ${phone}\n\nJOURNEY DETAILS:\n- Pick-up: ${pickup}\n- Drop-off: ${dropoff}\n- Date: ${date} at ${time}\n`;
+        if (isReturn) mailBody += `- Return: ${returnDate} at ${returnTime}\n`;
+        mailBody += `\nREQUIREMENTS:\n- Passengers: ${passengers}\n- Vehicle: ${vehicleClass}\n========================================`;
 
         const mailOptions = {
             from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
@@ -131,14 +113,12 @@ REQUIREMENTS:
 
         try {
             await transporter.sendMail(mailOptions);
-            console.log("Email sent successfully!");
         } catch (mailError) {
             console.error("Mail transport failed:", mailError);
         }
 
         res.status(200).json({ success: true, message: "Request received successfully." });
     } catch (error) {
-        console.error(error);
         res.status(500).json({ success: false, message: "Failed to submit request." });
     }
 });
@@ -146,160 +126,143 @@ REQUIREMENTS:
 app.post('/api/contact', async (req, res) => {
     try {
         const { name, email, phone, message } = req.body;
-
         try {
             const { error: dbError } = await supabase
                 .from('messages')
                 .insert([{ name, email, phone, message }]);
-
             if (dbError) throw dbError;
-        } catch (dbError) {
-            console.warn("Supabase Message write failed:", dbError.message);
+        } catch (err) {
+            console.warn("Supabase Warning:", err.message);
         }
-
-        const mailBody = `
-NEW CONTACT MESSAGE
-========================================
-CUSTOMER DETAILS:
-- Name: ${name}
-- Email: ${email}
-- Phone: ${phone}
-
-MESSAGE:
-${message}
-========================================
-        `;
 
         const mailOptions = {
             from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
             to: getReceiver(),
             subject: `New Message from ${name}`,
-            text: mailBody
+            text: `NEW CONTACT MESSAGE\n========================================\nCUSTOMER DETAILS:\n- Name: ${name}\n- Email: ${email}\n- Phone: ${phone}\n\nMESSAGE:\n${message}\n========================================`
         };
 
         try {
             await transporter.sendMail(mailOptions);
         } catch (mailError) {
-            console.error("Mail transport failed:", mailError);
+            console.warn("Mail transport failed.");
         }
-
         res.status(200).json({ success: true, message: "Message sent successfully." });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Failed to send message." });
+        res.status(500).json({ success: false });
     }
 });
 
 app.post('/api/apply', async (req, res) => {
     try {
         const { name, email, phone, license, vehicle, experience } = req.body;
-
         try {
             const { error: dbError } = await supabase
                 .from('drivers')
                 .insert([{ name, email, phone, license, vehicle, experience }]);
-
             if (dbError) throw dbError;
-        } catch (dbError) {
-            console.warn("Supabase Driver write failed:", dbError.message);
+        } catch (err) {
+            console.warn("Supabase Warning:", err.message);
         }
-
-        const mailBody = `
-NEW DRIVER APPLICATION RECEIVED
-========================================
-DRIVER DETAILS:
-- Name: ${name}
-- Email: ${email}
-- Phone: ${phone}
-
-PROFESSIONAL INFO:
-- PHV License: ${license}
-- Vehicle: ${vehicle}
-
-EXPERIENCE / BIO:
-${experience}
-========================================
-        `;
 
         const mailOptions = {
             from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
             to: getReceiver(),
             subject: `NEW DRIVER APPLICATION: ${name}`,
-            text: mailBody
+            text: `NEW DRIVER APPLICATION RECEIVED\n========================================\nDRIVER DETAILS:\n- Name: ${name}\n- Email: ${email}\n- Phone: ${phone}\n\nPROFESSIONAL INFO:\n- PHV License: ${license}\n- Vehicle: ${vehicle}\n\nEXPERIENCE / BIO:\n${experience}\n========================================`
         };
 
         try {
             await transporter.sendMail(mailOptions);
         } catch (mailError) {
-            console.error("Mail transport failed:", mailError);
+            console.warn("Mail transport failed.");
         }
-
         res.status(200).json({ success: true, message: "Application received successfully." });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Failed to submit application." });
+        res.status(500).json({ success: false });
     }
 });
 
-// Admin Auth
+// User Signup
+app.post('/api/admin/signup', (req, res) => {
+    const { name, email, password } = req.body;
+    const adminEmail = 'hassamazam999@gmail.com';
+    const role = (email === adminEmail) ? 'admin' : 'user';
+    console.log(`New Signup: ${name} (${email}) - Role: ${role}`);
+    const token = jwt.sign({ role, email, name }, JWT_SECRET, { expiresIn: '24h' });
+    res.status(200).json({ token, role, success: true });
+});
+
+// Admin & User Auth
 app.post('/api/admin/login', (req, res) => {
-    const { password } = req.body;
-    if (password === 'admin123') {
-        res.status(200).json({ token: 'mock-jwt-token-123', success: true });
+    const { email, password } = req.body;
+    const adminEmail = 'hassamazam999@gmail.com';
+    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+    
+    if (email === adminEmail && password === adminPass) {
+        const token = jwt.sign({ role: 'admin', email }, JWT_SECRET, { expiresIn: '24h' });
+        return res.status(200).json({ token, role: 'admin', success: true });
+    } else if (password === 'user123') { 
+        const token = jwt.sign({ role: 'user', email }, JWT_SECRET, { expiresIn: '24h' });
+        return res.status(200).json({ token, role: 'user', success: true });
     } else {
         res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 });
 
 // Admin Dashboard Data
-app.get('/api/admin/dashboard', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== 'Bearer mock-jwt-token-123') {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
+app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
+    const adminEmail = 'hassamazam999@gmail.com';
+    if (req.admin.role !== 'admin' || (req.admin.email && req.admin.email !== adminEmail)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
     try {
-        const { data: bookings, error: bError } = await supabase
-            .from('bookings')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        const { data: analytics, error: aError } = await supabase
-            .from('analytics')
-            .select('*');
-
-        if (bError || aError) throw (bError || aError);
+        const { data: bookings } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
+        const { data: messages } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
+        const { data: drivers } = await supabase.from('drivers').select('*').order('created_at', { ascending: false });
+        const { data: analytics } = await supabase.from('analytics').select('*');
 
         const stats = {
             total_bookings: bookings?.length || 0,
             pending_bookings: bookings?.filter(b => b.status === 'Pending').length || 0,
+            total_messages: messages?.length || 0,
+            total_drivers: drivers?.length || 0,
             page_views: analytics?.find(a => a.metric === 'page_views')?.value || 0,
             active_sessions: Math.floor(Math.random() * 5) + 1
         };
 
-        res.status(200).json({ bookings: bookings || [], stats, success: true });
+        res.status(200).json({ bookings: bookings || [], messages: messages || [], drivers: drivers || [], stats, success: true });
     } catch (error) {
-        console.error("Dashboard fetch error:", error);
         res.status(500).json({ success: false });
     }
 });
 
-app.post('/api/admin/bookings/:id/complete', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== 'Bearer mock-jwt-token-123') {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
+// User Dashboard Data
+app.get('/api/user/dashboard', authenticateAdmin, async (req, res) => {
     try {
-        const { error } = await supabase
-            .from('bookings')
-            .update({ status: 'Completed' })
-            .eq('id', req.params.id);
+        const { data: bookings } = await supabase.from('bookings').select('*').eq('email', req.admin.email).order('created_at', { ascending: false });
+        res.status(200).json({ bookings: bookings || [], success: true });
+    } catch (error) {
+        res.status(500).json({ success: false });
+    }
+});
 
-        if (error) throw error;
+app.post('/api/admin/bookings/:id/status', authenticateAdmin, async (req, res) => {
+    try {
+        const { status } = req.body;
+        await supabase.from('bookings').update({ status }).eq('id', req.params.id);
         res.status(200).json({ success: true });
     } catch (error) {
-        console.error("Booking update error:", error);
+        res.status(500).json({ success: false });
+    }
+});
+
+app.delete('/api/admin/bookings/:id', authenticateAdmin, async (req, res) => {
+    try {
+        await supabase.from('bookings').delete().eq('id', req.params.id);
+        res.status(200).json({ success: true });
+    } catch (error) {
         res.status(500).json({ success: false });
     }
 });
@@ -314,24 +277,13 @@ app.post('/api/admin/google-login', async (req, res) => {
         });
         const payload = ticket.getPayload();
         const email = payload['email'];
-
-        const authorizedEmail = process.env.EMAIL_USER || 'hello@us-executivetravel.com';
-        if (email === authorizedEmail) {
-            res.status(200).json({ 
-                success: true, 
-                token: 'mock-jwt-token-123',
-                user: { name: payload['name'], email: payload['email'], picture: payload['picture'] }
-            });
-        } else {
-            res.status(401).json({ success: false, message: 'Unauthorized Google Account' });
-        }
+        const adminEmail = 'hassamazam999@gmail.com';
+        const role = (email === adminEmail) ? 'admin' : 'user';
+        const token = jwt.sign({ role, email }, JWT_SECRET, { expiresIn: '24h' });
+        res.status(200).json({ success: true, token, role, user: { name: payload['name'], email, picture: payload['picture'] } });
     } catch (error) {
-        console.error("Google verify error", error);
         res.status(400).json({ success: false, message: 'Invalid Google Token' });
     }
 });
-
-// Database setup - No longer needed for Supabase as schema is managed in Dashboard
-console.log("Supabase integrated. Ensure tables are created in the Supabase Dashboard.");
 
 export default app;
