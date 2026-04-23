@@ -17,15 +17,17 @@ export function Hero() {
                         <span className="text-sm font-bold uppercase tracking-wider text-white">24/7 Dispatch Operating Now</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tighter leading-[1.05]">
-                        The Premier <br />
+                    <h1 className="text-5xl md:text-8xl font-extrabold text-white tracking-tighter leading-[0.95] uppercase">
+                        Travel in <br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-pink-600">
-                            Private Taxi
-                        </span> Service
+                            Style,
+                        </span> <br />
+                        Day or Night
                     </h1>
 
                     <p className="text-xl md:text-2xl text-white/80 leading-relaxed font-light max-w-2xl">
-                        Fast, reliable, and secure online taxi bookings. From local trips to nationwide airport transfers, we ensure you arrive safely and on time.
+                        Step into a premium private hire experience designed for comfort, class, and reliability. 
+                        Professional chauffeurs at your service 24/7.
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-6 pt-4">
@@ -42,19 +44,19 @@ export function Hero() {
                     <div className="grid grid-cols-2 gap-4 pt-6 mt-6 border-t border-white/10">
                         <div className="flex items-center gap-3">
                             <CheckCircle2 className="w-6 h-6 text-pink-500" />
-                            <span className="text-lg font-medium text-white/90">Instant Quotes</span>
+                            <span className="text-lg font-medium text-white/90">Executive Vehicles</span>
                         </div>
                         <div className="flex items-center gap-3">
                             <CheckCircle2 className="w-6 h-6 text-pink-500" />
-                            <span className="text-lg font-medium text-white/90">Card Payments Accepted</span>
+                            <span className="text-lg font-medium text-white/90">Professional Drivers</span>
                         </div>
                         <div className="flex items-center gap-3">
                             <CheckCircle2 className="w-6 h-6 text-pink-500" />
-                            <span className="text-lg font-medium text-white/90">Fully Vetted Drivers</span>
+                            <span className="text-lg font-medium text-white/90">Always On Time</span>
                         </div>
                         <div className="flex items-center gap-3">
                             <CheckCircle2 className="w-6 h-6 text-pink-500" />
-                            <span className="text-lg font-medium text-white/90">Text Updates on Arrival</span>
+                            <span className="text-lg font-medium text-white/90">24/7 Availability</span>
                         </div>
                     </div>
                 </div>

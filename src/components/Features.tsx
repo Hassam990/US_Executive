@@ -54,19 +54,21 @@ export function Features() {
                     ))}
                 </div>
 
-                {/* CTA Banner */}
-                <div className="mt-24 rounded-3xl bg-gradient-to-r from-[#2a0514] to-pink-900 border border-pink-500/20 p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
-                    <div className="max-w-xl">
-                        <h3 className="text-3xl font-bold text-white mb-4">Your Ride, Right in Your Pocket</h3>
+                {/* CTA Banner (Inspired by Image 2, 4, 5) */}
+                <div className="mt-24 rounded-3xl bg-gradient-to-r from-[#2a0514] to-pink-900 border border-pink-500/20 p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-pink-500/5 blur-3xl -translate-y-1/2 translate-x-1/2" />
+                    <div className="max-w-xl relative z-10">
+                        <h3 className="text-3xl font-bold text-white mb-4">Ready to Travel in Style?</h3>
                         <p className="text-pink-100/80 text-lg">
-                            With US Executive Travels, your private hire taxi is always just a message away. We make every journey smooth and comfortable.
+                            Professional drivers, executive vehicles, and 24/7 availability. 
+                            Experience the difference with US Executive Travels.
                         </p>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <button className="px-8 py-4 bg-white text-pink-900 rounded-xl font-bold hover:bg-pink-100 transition-colors shadow-lg">
+                    <div className="flex flex-col sm:flex-row gap-4 relative z-10 w-full md:w-auto">
+                        <button className="px-8 py-4 bg-white text-[#2a0514] rounded-xl font-black hover:bg-pink-100 transition-all hover:scale-105 shadow-lg uppercase tracking-wider text-sm flex items-center justify-center gap-2">
                             Book Now
                         </button>
-                        <button className="px-8 py-4 bg-pink-500/20 border border-pink-500/50 text-white rounded-xl font-bold hover:bg-pink-500/30 transition-colors">
+                        <button className="px-8 py-4 bg-pink-500/20 border border-white/20 text-white rounded-xl font-bold hover:bg-white/10 transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
                             Visit Our Website
                         </button>
                     </div>

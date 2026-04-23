@@ -1,7 +1,10 @@
 import { Hero } from "../components/Hero";
 import { Features } from "../components/Features";
+import { ServiceAreas } from "../components/ServiceAreas";
+import { AirportTransfers } from "../components/AirportTransfers";
+import { SafetyBanner } from "../components/SafetyBanner";
 import CardSwap, { Card } from "../components/CardSwap/CardSwap";
-import { Shield, Clock, Car, Star } from "lucide-react";
+import { Shield, Clock, Car, Star, Crown, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 export function Home() {
@@ -129,6 +132,54 @@ export function Home() {
                 </div>
             </motion.section>
 
+            <AirportTransfers />
+
+            {/* Premium Experience Section (Inspired by Image 3) */}
+            <section className="py-24 bg-black relative overflow-hidden">
+                <div className="container mx-auto px-6">
+                    <div className="grid lg:grid-cols-2 gap-16 items-center">
+                        <motion.div
+                            initial={{ opacity: 0, x: -30 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }}
+                            className="space-y-8"
+                        >
+                            <h2 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter">
+                                Your Ride, <br />
+                                <span className="text-pink-500">Served to Perfection</span>
+                            </h2>
+                            <p className="text-xl text-white/60 leading-relaxed font-light">
+                                At US Executive Travels, we don't just offer rides—we deliver a complete travel experience. 
+                                From pickup to drop-off, every journey is handled with care, comfort, and professionalism.
+                            </p>
+                            <ul className="space-y-4">
+                                {["Executive Vehicles", "Professional Drivers", "Always On Time", "24/7 Availability"].map((item, i) => (
+                                    <li key={i} className="flex items-center gap-3 text-white/80">
+                                        <CheckCircle className="text-pink-500 w-6 h-6" />
+                                        <span className="text-lg font-medium">{item}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </motion.div>
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            whileInView={{ opacity: 1, scale: 1 }}
+                            viewport={{ once: true }}
+                            className="relative aspect-video rounded-3xl overflow-hidden border border-white/10 bg-gradient-to-br from-pink-500/10 to-transparent flex items-center justify-center group"
+                        >
+                            <div className="absolute inset-0 bg-pink-600/5 blur-3xl group-hover:bg-pink-600/10 transition-all duration-700" />
+                            <Crown className="w-32 h-32 text-pink-500/40 group-hover:scale-110 transition-transform duration-700" />
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-black/40 backdrop-blur-[2px]">
+                                <p className="text-white text-2xl font-black uppercase tracking-widest mb-2">Premium Travel</p>
+                                <p className="text-pink-400 font-bold">Served Right</p>
+                            </div>
+                        </motion.div>
+                    </div>
+                </div>
+            </section>
+
+            <SafetyBanner />
+            <ServiceAreas />
             <Features />
         </main>
     );
