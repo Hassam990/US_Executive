@@ -1,5 +1,5 @@
 import { BookingWidget } from "./BookingWidget";
-import { CheckCircle2, Phone, Download } from "lucide-react";
+import { CheckCircle2, Phone } from "lucide-react";
 
 export function Hero() {
     return (
@@ -35,10 +35,6 @@ export function Hero() {
                             <Phone className="w-6 h-6 text-pink-500" />
                             07412671467
                         </a>
-                        <button className="inline-flex items-center justify-center gap-3 bg-black/50 border border-white/20 hover:bg-white/10 text-white font-bold px-8 py-4 rounded-xl text-lg backdrop-blur-md transition-all group">
-                            <Download className="w-6 h-6 text-pink-400 group-hover:-translate-y-1 transition-transform" />
-                            Download Our App
-                        </button>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 pt-6 mt-6 border-t border-white/10">
