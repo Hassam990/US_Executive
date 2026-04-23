@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Plane, Building, Home, ArrowRightLeft, CheckCircle2 } from "lucide-react";
+import { Plane, Home, ArrowRightLeft, CheckCircle2 } from "lucide-react";
 
 export function AirportTransfers() {
     return (

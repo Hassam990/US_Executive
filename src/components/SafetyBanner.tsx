@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ShieldCheck, Crosshair, Map, Navigation } from "lucide-react";
+import { ShieldCheck, Crosshair, Navigation } from "lucide-react";
 
 export function SafetyBanner() {
     return (
