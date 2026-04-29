@@ -1,0 +1,18 @@
+.lanyard-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Only the canvas should handle events if possible, or allow clicking through to form */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.lanyard-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: auto !important;
+}

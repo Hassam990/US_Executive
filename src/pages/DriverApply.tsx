@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Car, User, Phone, FileCheck, CheckCircle2, Mail } from "lucide-react";
+import { Car, User, Phone, FileCheck, CheckCircle2, Mail, Camera } from "lucide-react";
 
 export function DriverApply() {
     const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
@@ -12,8 +12,20 @@ export function DriverApply() {
         email: "",
         license: "",
         vehicle: "",
-        experience: ""
+        experience: "",
+        document: ""
     });
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setFormData({ ...formData, document: reader.result as string });
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -47,8 +59,8 @@ export function DriverApply() {
     }
 
     return (
-        <div className="min-h-screen bg-black pt-32 pb-20 px-6">
-            <div className="max-w-2xl mx-auto">
+        <div className="min-h-screen bg-black pt-32 pb-20 px-6 relative overflow-hidden">
+            <div className="max-w-2xl mx-auto relative z-10">
                 <div className="text-center mb-12 space-y-4">
                     <h1 className="text-5xl md:text-6xl font-black text-white uppercase tracking-tighter italic">Drive with Us</h1>
                     <p className="text-pink-500 font-bold uppercase tracking-[0.2em] text-sm">Join the US Executive Fleet</p>
@@ -137,6 +149,20 @@ export function DriverApply() {
                                 value={formData.experience}
                                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({...formData, experience: e.target.value})}
                             />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-white/40 uppercase tracking-widest pl-2">Scan Document (ID / License)</label>
+                            <div className="relative">
+                                <Camera className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-pink-500" />
+                                <Input 
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    capture="environment"
+                                    className="bg-black/40 border-white/10 h-14 pl-12 rounded-2xl text-white focus:border-pink-500 transition-all font-medium pt-3"
+                                    onChange={handleFileChange}
+                                />
+                            </div>
                         </div>
 
                         {status === "error" && <p className="text-red-500 text-xs font-bold text-center">Failed to send application. Please try again.</p>}

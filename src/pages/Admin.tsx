@@ -18,6 +18,7 @@ export function Admin() {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [searchQuery, setSearchQuery] = useState("");
     const [filterStatus, setFilterStatus] = useState("all");
+    const [selectedDriver, setSelectedDriver] = useState<any>(null);
 
     // Dashboard Data
     const [data, setData] = useState<any>(null);
@@ -95,6 +96,21 @@ export function Admin() {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             if (res.ok) fetchDashboard();
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const deleteDriver = async (id: number) => {
+        if (!confirm("Are you sure you want to delete this application?")) return;
+        try {
+            const { error } = await supabase.from('drivers').delete().eq('id', id);
+            if (!error) {
+                fetchDashboard();
+                if (selectedDriver?.id === id) setSelectedDriver(null);
+            } else {
+                console.error("Failed to delete driver:", error);
+            }
         } catch (err) {
             console.error(err);
         }
@@ -521,9 +537,34 @@ export function Admin() {
                                                 <p className="text-xs text-white/60 leading-relaxed line-clamp-3">{d.experience}</p>
                                             </div>
 
-                                            <Button className="w-full bg-white/5 hover:bg-white/10 text-white font-black uppercase tracking-widest text-[10px] h-12 rounded-xl border border-white/5">
-                                                View Full Application
-                                            </Button>
+                                            {d.document && (
+                                                <div className="w-full h-24 rounded-xl overflow-hidden border border-white/5 bg-black/40 relative">
+                                                    {d.document.startsWith('data:image') ? (
+                                                        <img src={d.document} className="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity" alt="Document thumbnail" />
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center h-full opacity-50">
+                                                            <FileText className="w-6 h-6 text-white mb-1" />
+                                                            <span className="text-[10px] font-bold text-white uppercase tracking-widest">PDF Attached</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center gap-2">
+                                                <Button 
+                                                    onClick={() => setSelectedDriver(d)}
+                                                    className="flex-grow bg-white/5 hover:bg-white/10 text-white font-black uppercase tracking-widest text-[10px] h-12 rounded-xl border border-white/5"
+                                                >
+                                                    View Full Application
+                                                </Button>
+                                                <Button 
+                                                    onClick={() => deleteDriver(d.id)}
+                                                    variant="ghost" 
+                                                    className="w-12 h-12 rounded-xl border border-white/5 bg-white/5 hover:bg-red-500/20 text-red-400 hover:text-red-400 hover:border-red-500/20 transition-all"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -538,6 +579,90 @@ export function Admin() {
                     </AnimatePresence>
                 </div>
             </main>
+
+            {/* Driver Application Modal */}
+            <AnimatePresence>
+                {selectedDriver && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                        onClick={() => setSelectedDriver(null)}
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-[#0a0505] border border-white/10 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                        >
+                            <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
+                                <div>
+                                    <h3 className="text-3xl font-black uppercase tracking-tight">{selectedDriver.name}</h3>
+                                    <p className="text-pink-500 font-bold uppercase tracking-widest text-[10px] mt-1">Full Application Review</p>
+                                </div>
+                                <button 
+                                    onClick={() => setSelectedDriver(null)}
+                                    className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Email</p>
+                                        <p className="text-sm font-bold">{selectedDriver.email}</p>
+                                    </div>
+                                    <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Phone</p>
+                                        <p className="text-sm font-bold">{selectedDriver.phone}</p>
+                                    </div>
+                                    <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">License</p>
+                                        <p className="text-sm font-bold">{selectedDriver.license}</p>
+                                    </div>
+                                    <div className="bg-black/40 p-4 rounded-2xl border border-white/5">
+                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">Vehicle</p>
+                                        <p className="text-sm font-bold">{selectedDriver.vehicle}</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-black/40 p-6 rounded-2xl border border-white/5">
+                                    <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-3">Bio / Experience</p>
+                                    <p className="text-sm leading-relaxed text-white/80 whitespace-pre-wrap">{selectedDriver.experience}</p>
+                                </div>
+
+                                {selectedDriver.document ? (
+                                    <div className="bg-black/40 p-6 rounded-2xl border border-white/5 space-y-4">
+                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Scanned Document</p>
+                                        {selectedDriver.document.startsWith('data:image') ? (
+                                            <img src={selectedDriver.document} alt="Document" className="w-full rounded-xl border border-white/10" />
+                                        ) : (
+                                            <iframe src={selectedDriver.document} title="Document" className="w-full h-96 rounded-xl border border-white/10 bg-white" />
+                                        )}
+                                        <a 
+                                            href={selectedDriver.document} 
+                                            download={`Document_${selectedDriver.name}`}
+                                            className="inline-flex items-center gap-2 text-pink-500 font-bold text-xs uppercase hover:text-pink-400 transition-colors"
+                                        >
+                                            <Download className="w-4 h-4" /> Download Document
+                                        </a>
+                                    </div>
+                                ) : (
+                                    <div className="bg-black/40 p-10 rounded-2xl border border-white/5 border-dashed flex flex-col items-center justify-center text-center">
+                                        <FileText className="w-12 h-12 text-white/10 mb-4" />
+                                        <p className="text-white/40 text-sm font-bold uppercase tracking-widest">No Document Attached</p>
+                                        <p className="text-white/20 text-xs mt-2 max-w-sm">This application was either submitted before the document scanning feature was added, or no document was provided.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

@@ -193,12 +193,12 @@ app.post('/api/contact', async (req, res) => {
 
 app.post('/api/apply', async (req, res) => {
     try {
-        const { name, email, phone, license, vehicle, experience } = req.body;
+        const { name, email, phone, license, vehicle, experience, document } = req.body;
         if (supabase) {
             try {
                 const { error: dbError } = await supabase
                     .from('drivers')
-                    .insert([{ name, email, phone, license, vehicle, experience }]);
+                    .insert([{ name, email, phone, license, vehicle, experience, document }]);
                 if (dbError) throw dbError;
             } catch (err) {
                 console.warn("Supabase Warning:", err.message);
@@ -209,13 +209,19 @@ app.post('/api/apply', async (req, res) => {
             from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
             to: getReceiver(),
             subject: `NEW DRIVER APPLICATION: ${name}`,
-            text: `NEW DRIVER APPLICATION RECEIVED\n========================================\nDRIVER DETAILS:\n- Name: ${name}\n- Email: ${email}\n- Phone: ${phone}\n\nPROFESSIONAL INFO:\n- PHV License: ${license}\n- Vehicle: ${vehicle}\n\nEXPERIENCE / BIO:\n${experience}\n========================================`
+            text: `NEW DRIVER APPLICATION RECEIVED\n========================================\nDRIVER DETAILS:\n- Name: ${name}\n- Email: ${email}\n- Phone: ${phone}\n\nPROFESSIONAL INFO:\n- PHV License: ${license}\n- Vehicle: ${vehicle}\n\nEXPERIENCE / BIO:\n${experience}\n========================================`,
+            attachments: document ? [
+                {
+                    filename: 'Scanned_Document.pdf', // Defaulting to pdf, or nodemailer infers
+                    path: document
+                }
+            ] : []
         };
 
         try {
             await transporter.sendMail(mailOptions);
         } catch (mailError) {
-            console.warn("Mail transport failed.");
+            console.warn("Mail transport failed.", mailError);
         }
         res.status(200).json({ success: true, message: "Application received successfully." });
     } catch (error) {

@@ -78,7 +78,7 @@ function AddressAutocomplete({
     onLocationSelect?: (lat: number, lon: number, address: string) => void,
     placeholder: string,
     name: string,
-    icon: React.ElementType
+    icon: any
 }) {
     const [suggestions, setSuggestions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
