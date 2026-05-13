@@ -3,7 +3,7 @@ import { CheckCircle2, Phone } from "lucide-react";
 
 export function Hero() {
     return (
-        <section className="relative min-h-screen flex items-center pt-28 pb-16 overflow-hidden bg-gradient-to-br from-[#160008] via-[#2a0514] to-black">
+        <section className="relative min-h-screen flex items-center pt-32 md:pt-40 pb-16 overflow-hidden bg-gradient-to-br from-[#160008] via-[#2a0514] to-black">
             {/* Background Effects */}
             <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-pink-600/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 z-0" />
             <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-pink-900/20 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/3 z-0" />

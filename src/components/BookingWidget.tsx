@@ -146,7 +146,7 @@ function AddressAutocomplete({
                 required
                 placeholder={placeholder}
                 autoComplete="off"
-                className="pl-10 pr-10 bg-black/40 border-pink-500/30 text-pink-100 font-semibold placeholder:text-pink-300/50 h-14 focus-visible:ring-pink-500 rounded-xl"
+                className="pl-10 pr-10 bg-black/40 border-pink-500/30 text-pink-100 font-semibold placeholder:text-pink-300/50 h-14 focus-visible:ring-pink-500 rounded-xl text-base"
             />
             {loading && <Loader2 className="absolute right-3 top-4 w-5 h-5 text-pink-400 animate-spin" />}
 
@@ -265,15 +265,15 @@ export function BookingWidget() {
     const mapCenter = activeField && coords[activeField] ? coords[activeField] as [number, number] : (coords.pickup || defaultCenter);
 
     return (
-        <div className="bg-white/5 border border-white/10 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-visible rounded-2xl">
+        <div className="bg-white/5 border border-white/10 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-visible rounded-3xl">
             {/* Header Area */}
-            <div className="bg-pink-600/20 border-b border-pink-500/20 p-6 flex items-center justify-between">
+            <div className="bg-pink-600/20 border-b border-pink-500/20 p-5 md:p-6 flex items-center justify-between">
                 <div>
-                    <h3 className="text-2xl font-black text-white uppercase tracking-tight">Book a Taxi</h3>
-                    <p className="text-white/70 text-sm mt-1 font-medium">Fast, reliable, and secure online booking.</p>
+                    <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Book a Taxi</h3>
+                    <p className="text-white/70 text-[10px] md:text-sm mt-0.5 font-medium uppercase tracking-wider">Fast, reliable, and secure</p>
                 </div>
-                <div className="w-12 h-12 bg-pink-500/30 rounded-xl flex items-center justify-center">
-                    <Car className="w-6 h-6 text-pink-300" />
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-pink-500/30 rounded-xl flex items-center justify-center">
+                    <Car className="w-5 h-5 md:w-6 md:h-6 text-pink-300" />
                 </div>
             </div>
 
@@ -338,7 +338,7 @@ export function BookingWidget() {
                     </div>
 
                     {/* Contact Details */}
-                    <div className="grid md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label className="text-white font-semibold">Full Name</Label>
                             <Input
@@ -347,7 +347,7 @@ export function BookingWidget() {
                                 onChange={handleChange}
                                 required
                                 placeholder="John Doe"
-                                className="bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl"
+                                className="bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl text-base"
                             />
                         </div>
                         <div className="space-y-2">
@@ -359,7 +359,7 @@ export function BookingWidget() {
                                 onChange={handleChange}
                                 required
                                 placeholder="07123 456789"
-                                className="bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl"
+                                className="bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl text-base"
                             />
                         </div>
                         <div className="col-span-2 space-y-2">
@@ -371,7 +371,7 @@ export function BookingWidget() {
                                 onChange={handleChange}
                                 required
                                 placeholder="john@example.com"
-                                className="bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl"
+                                className="bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl text-base"
                             />
                         </div>
                     </div>
@@ -411,7 +411,7 @@ export function BookingWidget() {
                     </div>
 
                     {/* Date/Time */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-4 w-5 h-5 text-pink-400/70" />
@@ -421,7 +421,7 @@ export function BookingWidget() {
                                     value={formData.date}
                                     onChange={handleChange}
                                     required
-                                    className="pl-10 bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl [color-scheme:dark]"
+                                    className="pl-10 bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl [color-scheme:dark] text-base"
                                 />
                             </div>
                         </div>
@@ -434,7 +434,7 @@ export function BookingWidget() {
                                     value={formData.time}
                                     onChange={handleChange}
                                     required
-                                    className="pl-10 bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl [color-scheme:dark]"
+                                    className="pl-10 bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl [color-scheme:dark] text-base"
                                 />
                             </div>
                         </div>
@@ -442,7 +442,7 @@ export function BookingWidget() {
 
                     {/* Return Date/Time */}
                     {isReturn && (
-                        <div className="grid grid-cols-2 gap-4 mt-4 p-4 bg-pink-950/40 rounded-xl border border-pink-500/30">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 p-4 bg-pink-950/40 rounded-xl border border-pink-500/30">
                             <div className="col-span-2 text-pink-300 font-bold text-sm mb-1 uppercase tracking-wider flex items-center gap-2">
                                 <ArrowRightLeft className="w-4 h-4" /> Return Details
                             </div>
@@ -454,7 +454,7 @@ export function BookingWidget() {
                                     value={formData.returnDate}
                                     onChange={handleChange}
                                     required
-                                    className="pl-10 bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl [color-scheme:dark]"
+                                    className="pl-10 bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl [color-scheme:dark] text-base"
                                 />
                             </div>
                             <div className="relative">
@@ -465,14 +465,14 @@ export function BookingWidget() {
                                     value={formData.returnTime}
                                     onChange={handleChange}
                                     required
-                                    className="pl-10 bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl [color-scheme:dark]"
+                                    className="pl-10 bg-black/40 border-pink-500/30 text-pink-100 h-14 focus-visible:ring-pink-500 rounded-xl [color-scheme:dark] text-base"
                                 />
                             </div>
                         </div>
                     )}
 
                     {/* Specifications */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label className="text-white font-semibold">Passengers</Label>
                             <div className="relative">
@@ -481,7 +481,7 @@ export function BookingWidget() {
                                     name="passengers"
                                     value={formData.passengers}
                                     onChange={handleChange}
-                                    className="w-full pl-10 bg-black/40 border border-pink-500/30 rounded-xl text-pink-100 h-14 focus-visible:ring-pink-500 appearance-none font-semibold cursor-pointer"
+                                    className="w-full pl-10 bg-black/40 border border-pink-500/30 rounded-xl text-pink-100 h-14 focus-visible:ring-pink-500 appearance-none font-semibold cursor-pointer text-base"
                                 >
                                     {[1, 2, 3, 4, 5, 6, 7, 8].map(n => <option key={n} value={n} className="bg-[#2a0514] text-pink-100">{n} Passenger(s)</option>)}
                                 </select>
@@ -494,7 +494,7 @@ export function BookingWidget() {
                                     name="vehicleClass"
                                     value={formData.vehicleClass}
                                     onChange={handleChange}
-                                    className="w-full pl-4 bg-black/40 border border-pink-500/30 rounded-xl text-pink-100 h-14 focus-visible:ring-pink-500 appearance-none font-semibold cursor-pointer"
+                                    className="w-full pl-4 bg-black/40 border border-pink-500/30 rounded-xl text-pink-100 h-14 focus-visible:ring-pink-500 appearance-none font-semibold cursor-pointer text-base"
                                     style={{ backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23fbcfe8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 1rem top 50%", backgroundSize: "0.65rem auto" }}
                                 >
                                     <option value="Saloon" className="bg-[#2a0514] text-pink-100">Saloon Car</option>

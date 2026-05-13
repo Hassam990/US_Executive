@@ -195,14 +195,15 @@ app.post('/api/contact', async (req, res) => {
 app.post('/api/apply', async (req, res) => {
     try {
         const { name, email, phone, license, vehicle, experience, document } = req.body;
+        // 1. First, save to Supabase
         if (supabase) {
-            try {
-                const { error: dbError } = await supabase
-                    .from('drivers')
-                    .insert([{ name, email, phone, license, vehicle, experience, document }]);
-                if (dbError) throw dbError;
-            } catch (err) {
-                console.warn("Supabase Warning:", err.message);
+            const { error: dbError } = await supabase
+                .from('drivers')
+                .insert([{ name, email, phone, license, vehicle, experience, document }]);
+            
+            if (dbError) {
+                console.error("Supabase Error:", dbError);
+                return res.status(500).json({ success: false, error: `Database Error: ${dbError.message}` });
             }
         }
 
@@ -216,6 +217,7 @@ app.post('/api/apply', async (req, res) => {
             else if (mimeType.includes('application/pdf')) fileExt = 'pdf';
         }
 
+        // 2. Prepare Email
         const mailOptions = {
             from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
             to: getReceiver(),
@@ -229,12 +231,14 @@ app.post('/api/apply', async (req, res) => {
             ] : []
         };
 
-        try {
-            await transporter.sendMail(mailOptions);
-        } catch (mailError) {
-            console.warn("Mail transport failed.", mailError);
-        }
-        res.status(200).json({ success: true, message: "Application received successfully." });
+        // 3. Return success IMMEDIATELY to avoid client timeout
+        res.status(200).json({ success: true, message: "Application received. Processing email in background." });
+
+        // 4. Send email in background (errors here won't affect the client response)
+        transporter.sendMail(mailOptions).catch(err => {
+            console.error("Background Email Error:", err.message);
+        });
+
     } catch (error) {
         console.error("APPLICATION ERROR:", error);
         res.status(500).json({ success: false, error: error.message });
