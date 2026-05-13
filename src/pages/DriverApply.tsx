@@ -19,21 +19,55 @@ export function DriverApply() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            // Basic size check (15MB)
-            if (file.size > 15 * 1024 * 1024) {
-                alert("File is too large. Please upload a file smaller than 15MB.");
-                e.target.value = '';
-                return;
+            // Check if it's an image for compression
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+
+                        // Max 1200px width/height for reasonable file size
+                        const MAX_SIZE = 1200;
+                        if (width > height) {
+                            if (width > MAX_SIZE) {
+                                height *= MAX_SIZE / width;
+                                width = MAX_SIZE;
+                            }
+                        } else {
+                            if (height > MAX_SIZE) {
+                                width *= MAX_SIZE / height;
+                                height = MAX_SIZE;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx?.drawImage(img, 0, 0, width, height);
+                        
+                        // Compress to 70% quality jpeg
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                        setFormData({ ...formData, document: compressedDataUrl });
+                    };
+                    img.src = event.target?.result as string;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                // For non-images (like PDF), just read as is but check size
+                if (file.size > 4 * 1024 * 1024) { // 4MB limit for PDFs to be safe with Vercel
+                    alert("PDF files must be smaller than 4MB. For images, we compress them automatically.");
+                    e.target.value = '';
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setFormData({ ...formData, document: reader.result as string });
+                };
+                reader.readAsDataURL(file);
             }
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setFormData({ ...formData, document: reader.result as string });
-            };
-            reader.onerror = () => {
-                console.error("Error reading file");
-                setStatus("error");
-            };
-            reader.readAsDataURL(file);
         }
     };
 

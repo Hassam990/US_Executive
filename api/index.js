@@ -10,7 +10,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-123';
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Request logger
 app.use((req, res, next) => {
@@ -205,6 +206,16 @@ app.post('/api/apply', async (req, res) => {
             }
         }
 
+        // Determine file extension from data URL
+        let fileExt = 'pdf';
+        if (document && document.startsWith('data:')) {
+            const mimeType = document.split(';')[0].split(':')[1];
+            if (mimeType.includes('image/jpeg')) fileExt = 'jpg';
+            else if (mimeType.includes('image/png')) fileExt = 'png';
+            else if (mimeType.includes('image/webp')) fileExt = 'webp';
+            else if (mimeType.includes('application/pdf')) fileExt = 'pdf';
+        }
+
         const mailOptions = {
             from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
             to: getReceiver(),
@@ -212,7 +223,7 @@ app.post('/api/apply', async (req, res) => {
             text: `NEW DRIVER APPLICATION RECEIVED\n========================================\nDRIVER DETAILS:\n- Name: ${name}\n- Email: ${email}\n- Phone: ${phone}\n\nPROFESSIONAL INFO:\n- PHV License: ${license}\n- Vehicle: ${vehicle}\n\nEXPERIENCE / BIO:\n${experience}\n========================================`,
             attachments: document ? [
                 {
-                    filename: 'Scanned_Document.pdf', // Defaulting to pdf, or nodemailer infers
+                    filename: `Driver_Document.${fileExt}`,
                     path: document
                 }
             ] : []
