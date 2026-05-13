@@ -19,9 +19,19 @@ export function DriverApply() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            // Basic size check (15MB)
+            if (file.size > 15 * 1024 * 1024) {
+                alert("File is too large. Please upload a file smaller than 15MB.");
+                e.target.value = '';
+                return;
+            }
             const reader = new FileReader();
             reader.onloadend = () => {
                 setFormData({ ...formData, document: reader.result as string });
+            };
+            reader.onerror = () => {
+                console.error("Error reading file");
+                setStatus("error");
             };
             reader.readAsDataURL(file);
         }
@@ -157,8 +167,7 @@ export function DriverApply() {
                                 <Camera className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-pink-500" />
                                 <Input 
                                     type="file"
-                                    accept="image/*,application/pdf"
-                                    capture="environment"
+                                    accept="image/jpeg,image/png,image/webp,application/pdf"
                                     className="bg-black/40 border-white/10 h-14 pl-12 rounded-2xl text-white focus:border-pink-500 transition-all font-medium pt-3"
                                     onChange={handleFileChange}
                                 />

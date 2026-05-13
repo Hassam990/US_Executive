@@ -234,6 +234,16 @@ ${experience}
             ? process.env.TEST_EMAIL_RECEIVER 
             : (process.env.EMAIL_RECEIVER || 'hello@us-executivetravel.com');
 
+        // Determine file extension from data URL
+        let fileExt = 'pdf';
+        if (document && document.startsWith('data:')) {
+            const mimeType = document.split(';')[0].split(':')[1];
+            if (mimeType.includes('image/jpeg')) fileExt = 'jpg';
+            else if (mimeType.includes('image/png')) fileExt = 'png';
+            else if (mimeType.includes('image/webp')) fileExt = 'webp';
+            else if (mimeType.includes('application/pdf')) fileExt = 'pdf';
+        }
+
         const mailOptions = {
             from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
             to: receiver,
@@ -241,7 +251,7 @@ ${experience}
             text: mailBody,
             attachments: document ? [
                 {
-                    filename: 'Scanned_Document.pdf',
+                    filename: `Driver_Document.${fileExt}`,
                     path: document
                 }
             ] : []
@@ -250,7 +260,7 @@ ${experience}
         try {
             await transporter.sendMail(mailOptions);
         } catch (mailError) {
-            console.warn("Mail transport failed. Data saved to SQLite successfully.");
+            console.warn("Mail transport failed:", mailError.message);
         }
 
         res.status(200).json({ success: true, message: "Application received successfully." });
