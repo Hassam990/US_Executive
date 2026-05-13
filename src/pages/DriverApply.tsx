@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Car, User, Phone, FileCheck, CheckCircle2, Mail, Camera } from "lucide-react";
 
 export function DriverApply() {
-    const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+    const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error" | "processing">("idle");
+    const [errorMsg, setErrorMsg] = useState<string>("");
     const [formData, setFormData] = useState({
         name: "",
         phone: "",
@@ -19,52 +20,79 @@ export function DriverApply() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            setStatus("processing");
+            setErrorMsg("");
+
             // Check if it's an image for compression
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const img = new Image();
                     img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
+                        try {
+                            const canvas = document.createElement('canvas');
+                            let width = img.width;
+                            let height = img.height;
 
-                        // Max 1200px width/height for reasonable file size
-                        const MAX_SIZE = 1200;
-                        if (width > height) {
-                            if (width > MAX_SIZE) {
-                                height *= MAX_SIZE / width;
-                                width = MAX_SIZE;
+                            const MAX_SIZE = 1200;
+                            if (width > height) {
+                                if (width > MAX_SIZE) {
+                                    height *= MAX_SIZE / width;
+                                    width = MAX_SIZE;
+                                }
+                            } else {
+                                if (height > MAX_SIZE) {
+                                    width *= MAX_SIZE / height;
+                                    height = MAX_SIZE;
+                                }
                             }
-                        } else {
-                            if (height > MAX_SIZE) {
-                                width *= MAX_SIZE / height;
-                                height = MAX_SIZE;
+
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            if (!ctx) throw new Error("Could not get canvas context");
+                            
+                            ctx.drawImage(img, 0, 0, width, height);
+                            
+                            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                            setFormData(prev => ({ ...prev, document: compressedDataUrl }));
+                            setStatus("idle");
+                        } catch (err) {
+                            console.error("Compression error:", err);
+                            // Fallback to original if compression fails but check size
+                            if (file.size > 8 * 1024 * 1024) {
+                                setErrorMsg("Image is too large and failed to compress. Please try a different photo.");
+                                setStatus("error");
+                            } else {
+                                setFormData(prev => ({ ...prev, document: event.target?.result as string }));
+                                setStatus("idle");
                             }
                         }
-
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx?.drawImage(img, 0, 0, width, height);
-                        
-                        // Compress to 70% quality jpeg
-                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                        setFormData({ ...formData, document: compressedDataUrl });
+                    };
+                    img.onerror = () => {
+                        console.error("Image load error");
+                        setStatus("error");
+                        setErrorMsg("Failed to load image file.");
                     };
                     img.src = event.target?.result as string;
                 };
+                reader.onerror = () => {
+                    setStatus("error");
+                    setErrorMsg("Failed to read file.");
+                };
                 reader.readAsDataURL(file);
             } else {
-                // For non-images (like PDF), just read as is but check size
-                if (file.size > 4 * 1024 * 1024) { // 4MB limit for PDFs to be safe with Vercel
-                    alert("PDF files must be smaller than 4MB. For images, we compress them automatically.");
+                // For non-images (like PDF), check size
+                if (file.size > 5 * 1024 * 1024) {
+                    alert("PDF files must be smaller than 5MB.");
                     e.target.value = '';
+                    setStatus("idle");
                     return;
                 }
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    setFormData({ ...formData, document: reader.result as string });
+                    setFormData(prev => ({ ...prev, document: reader.result as string }));
+                    setStatus("idle");
                 };
                 reader.readAsDataURL(file);
             }
@@ -73,17 +101,30 @@ export function DriverApply() {
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (status === "processing") return;
+        
         setStatus("submitting");
+        setErrorMsg("");
+
         try {
             const res = await fetch("/api/apply", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData)
             });
-            if (res.ok) setStatus("success");
-            else setStatus("error");
+            
+            const result = await res.json().catch(() => ({}));
+
+            if (res.ok && result.success) {
+                setStatus("success");
+            } else {
+                setStatus("error");
+                setErrorMsg(result.error || "Server rejected the application. Please try again.");
+            }
         } catch (err) {
+            console.error("Submit error:", err);
             setStatus("error");
+            setErrorMsg("Network error. Please check your internet and try again.");
         }
     };
 
@@ -122,7 +163,7 @@ export function DriverApply() {
                                         placeholder="John Doe"
                                         className="bg-black/40 border-white/10 h-14 pl-12 rounded-2xl text-white focus:border-pink-500 transition-all font-medium"
                                         value={formData.name}
-                                        onChange={e => setFormData({...formData, name: e.target.value})}
+                                        onChange={e => setFormData(prev => ({...prev, name: e.target.value}))}
                                     />
                                 </div>
                             </div>
@@ -135,7 +176,7 @@ export function DriverApply() {
                                         placeholder="+44 7..."
                                         className="bg-black/40 border-white/10 h-14 pl-12 rounded-2xl text-white focus:border-pink-500 transition-all font-medium"
                                         value={formData.phone}
-                                        onChange={e => setFormData({...formData, phone: e.target.value})}
+                                        onChange={e => setFormData(prev => ({...prev, phone: e.target.value}))}
                                     />
                                 </div>
                             </div>
@@ -151,7 +192,7 @@ export function DriverApply() {
                                     placeholder="john@example.com"
                                     className="bg-black/40 border-white/10 h-14 pl-12 rounded-2xl text-white focus:border-pink-500 transition-all font-medium"
                                     value={formData.email}
-                                    onChange={e => setFormData({...formData, email: e.target.value})}
+                                    onChange={e => setFormData(prev => ({...prev, email: e.target.value}))}
                                 />
                             </div>
                         </div>
@@ -165,7 +206,7 @@ export function DriverApply() {
                                     placeholder="Enter License Details"
                                     className="bg-black/40 border-white/10 h-14 pl-12 rounded-2xl text-white focus:border-pink-500 transition-all font-medium"
                                     value={formData.license}
-                                    onChange={e => setFormData({...formData, license: e.target.value})}
+                                    onChange={e => setFormData(prev => ({...prev, license: e.target.value}))}
                                 />
                             </div>
                         </div>
@@ -179,7 +220,7 @@ export function DriverApply() {
                                     placeholder="e.g. Mercedes E-Class 2023"
                                     className="bg-black/40 border-white/10 h-14 pl-12 rounded-2xl text-white focus:border-pink-500 transition-all font-medium"
                                     value={formData.vehicle}
-                                    onChange={e => setFormData({...formData, vehicle: e.target.value})}
+                                    onChange={e => setFormData(prev => ({...prev, vehicle: e.target.value}))}
                                 />
                             </div>
                         </div>
@@ -191,7 +232,7 @@ export function DriverApply() {
                                 placeholder="Tell us about your experience..."
                                 className="bg-black/40 border-white/10 min-h-[120px] rounded-2xl text-white focus:border-pink-500 transition-all font-medium p-4 resize-none"
                                 value={formData.experience}
-                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({...formData, experience: e.target.value})}
+                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData(prev => ({...prev, experience: e.target.value}))}
                             />
                         </div>
 
@@ -208,14 +249,14 @@ export function DriverApply() {
                             </div>
                         </div>
 
-                        {status === "error" && <p className="text-red-500 text-xs font-bold text-center">Failed to send application. Please try again.</p>}
+                        {status === "error" && <p className="text-red-500 text-xs font-bold text-center">{errorMsg || "Failed to send application. Please try again."}</p>}
 
                         <Button 
                             type="submit"
-                            disabled={status === "submitting"}
+                            disabled={status === "submitting" || status === "processing"}
                             className="w-full h-16 bg-pink-600 hover:bg-pink-500 text-white font-black text-xl uppercase tracking-widest rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] shadow-[0_10px_30px_rgba(236,72,153,0.3)]"
                         >
-                            {status === "submitting" ? "PROCESSING..." : "SUBMIT APPLICATION"}
+                            {status === "submitting" ? "PROCESSING..." : status === "processing" ? "COMPRESSING IMAGE..." : "SUBMIT APPLICATION"}
                         </Button>
                     </form>
                 </div>

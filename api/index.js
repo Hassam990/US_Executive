@@ -236,7 +236,8 @@ app.post('/api/apply', async (req, res) => {
         }
         res.status(200).json({ success: true, message: "Application received successfully." });
     } catch (error) {
-        res.status(500).json({ success: false });
+        console.error("APPLICATION ERROR:", error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
