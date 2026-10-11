@@ -59,12 +59,18 @@ const getSupabase = () => {
 
 const supabase = getSupabase();
 
-// Transporter setup
+// Transporter setup — IONOS (us-executivetravel.com is hosted on IONOS)
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.SMTP_HOST || 'smtp.ionos.co.uk',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: false, // STARTTLS on port 587
     auth: {
         user: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
         pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        ciphers: 'SSLv3',
+        rejectUnauthorized: false
     }
 });
 

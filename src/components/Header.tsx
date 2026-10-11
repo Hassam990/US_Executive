@@ -27,8 +27,8 @@ const navItems = [
         textColor: "#fff",
         links: [
             { label: "Contact Us", href: "/contact", ariaLabel: "Contact Us" },
-            { label: "Driver Portal", href: "/admin", ariaLabel: "Driver Portal" },
-            { label: "Terms of Service", href: "/terms", ariaLabel: "Terms" }
+            { label: "Driver Portal", href: "/apply", ariaLabel: "Driver Portal" },
+            { label: "Terms of Service", href: "/contact", ariaLabel: "Terms" }
         ]
     }
 ];
