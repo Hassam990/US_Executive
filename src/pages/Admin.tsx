@@ -46,12 +46,14 @@ export function Admin() {
             if (res.ok) {
                 const result = await res.json();
                 setData(result);
-            } else {
+            } else if (res.status === 401 || res.status === 403) {
                 setToken(null);
                 setRole(null);
                 localStorage.removeItem('adminToken');
                 localStorage.removeItem('userRole');
                 navigate("/login");
+            } else {
+                console.warn("Dashboard fetch failed with status:", res.status);
             }
         } catch (err) {
             console.error("Dashboard error", err);

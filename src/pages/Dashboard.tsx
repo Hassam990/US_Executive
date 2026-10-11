@@ -20,8 +20,10 @@ export function Dashboard() {
             if (res.ok) {
                 const result = await res.json();
                 setData(result);
-            } else {
+            } else if (res.status === 401 || res.status === 403) {
                 handleLogout();
+            } else {
+                console.warn("User dashboard fetch failed with status:", res.status);
             }
         } catch (err) {
             console.error("Dashboard error", err);

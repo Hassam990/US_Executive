@@ -13,33 +13,56 @@ export function Login() {
 
     // Google Login Integration
     useEffect(() => {
-        /* global google */
-        const script = document.createElement("script");
-        script.src = "https://accounts.google.com/gsi/client";
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
-
-        script.onload = () => {
-             try {
+        const renderGoogleBtn = () => {
+            try {
+                // @ts-expect-error google is global
+                if (!window.google?.accounts?.id) return;
                 const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "816912441965-ue09q6u0sfc0h8sl6404vpr269rjlaqp.apps.googleusercontent.com";
-                console.log("Google SDK Loaded, initializing with ID:", clientId.substring(0, 10) + "...");
                 
                 // @ts-expect-error google is global
-                google.accounts.id.initialize({
+                window.google.accounts.id.initialize({
                     client_id: clientId,
                     callback: handleGoogleResponse
                 });
-                // @ts-expect-error google is global
-                google.accounts.id.renderButton(
-                    document.getElementById("googleBtn"),
-                    { theme: "filled_blue", size: "large", width: "100%", shape: "pill", text: "signin_with" }
-                );
-             } catch (err) {
+                const btnContainer = document.getElementById("googleBtn");
+                if (btnContainer) {
+                    btnContainer.innerHTML = "";
+                    // @ts-expect-error google is global
+                    window.google.accounts.id.renderButton(btnContainer, {
+                        theme: "filled_blue",
+                        size: "large",
+                        width: 300,
+                        shape: "pill",
+                        text: "signin_with"
+                    });
+                }
+            } catch (err) {
                 console.error("Google SDK Initialization Error:", err);
-             }
+            }
         };
-        return () => { try { document.head.removeChild(script); } catch { /* ignore */ } };
+
+        // @ts-expect-error google is global
+        if (window.google?.accounts?.id) {
+            renderGoogleBtn();
+            return;
+        }
+
+        let script = document.getElementById("google-gsi-client") as HTMLScriptElement | null;
+        if (!script) {
+            script = document.createElement("script");
+            script.id = "google-gsi-client";
+            script.src = "https://accounts.google.com/gsi/client";
+            script.async = true;
+            script.defer = true;
+            document.head.appendChild(script);
+        }
+        script.addEventListener("load", renderGoogleBtn);
+
+        return () => {
+            if (script) {
+                script.removeEventListener("load", renderGoogleBtn);
+            }
+        };
     }, []);
 
     const handleGoogleResponse = async (response: any) => {
