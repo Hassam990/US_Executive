@@ -69,6 +69,10 @@ const CardNav: React.FC<CardNavProps> = ({
           setUser(null);
         }
       } else {
+        if (userData && !token) {
+          localStorage.removeItem('userData');
+          localStorage.removeItem('userRole');
+        }
         setUser(null);
       }
     };
@@ -102,6 +106,7 @@ const CardNav: React.FC<CardNavProps> = ({
     localStorage.removeItem('userData');
     setUser(null);
     setIsUserMenuOpen(false);
+    window.dispatchEvent(new Event('auth-change'));
     navigate('/login');
   };
 

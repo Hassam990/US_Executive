@@ -35,6 +35,8 @@ export function Dashboard() {
     const handleLogout = () => {
         localStorage.removeItem('adminToken');
         localStorage.removeItem('userRole');
+        localStorage.removeItem('userData');
+        window.dispatchEvent(new Event('auth-change'));
         window.location.href = "/login";
     };
 

@@ -51,6 +51,8 @@ export function Admin() {
                 setRole(null);
                 localStorage.removeItem('adminToken');
                 localStorage.removeItem('userRole');
+                localStorage.removeItem('userData');
+                window.dispatchEvent(new Event('auth-change'));
                 navigate("/login");
             } else {
                 console.warn("Dashboard fetch failed with status:", res.status);
