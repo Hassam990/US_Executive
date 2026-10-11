@@ -62,6 +62,8 @@ export function Admin() {
         if (!token || role !== 'admin') return;
         fetchDashboard();
 
+        if (!supabase) return;
+
         const channel = supabase
             .channel('admin_dashboard')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => fetchDashboard())
@@ -69,7 +71,9 @@ export function Admin() {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, () => fetchDashboard())
             .subscribe();
 
-        return () => { supabase.removeChannel(channel); };
+        return () => { 
+            if (supabase) supabase.removeChannel(channel); 
+        };
     }, [token, role]);
 
     const updateBookingStatus = async (id: number, newStatus: string) => {
@@ -103,6 +107,10 @@ export function Admin() {
 
     const deleteDriver = async (id: number) => {
         if (!confirm("Are you sure you want to delete this application?")) return;
+        if (!supabase) {
+            alert("Database connection is not configured.");
+            return;
+        }
         try {
             const { error } = await supabase.from('drivers').delete().eq('id', id);
             if (!error) {
