@@ -37,9 +37,7 @@ app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
     next();
 });
-app.get('/health', (req, res) => {
-    res.status(200).json({ ok: true, service: 'us-executive-api' });
-});
+
 // Supabase initialization (null-safe — won't crash if env vars are missing)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
