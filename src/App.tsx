@@ -23,9 +23,9 @@ function usePageTracking() {
 function PublicLayout({ children }: { children: React.ReactNode }) {
   usePageTracking();
   return (
-    <div className="min-h-screen bg-black font-sans antialiased text-white selection:bg-pink-500/30 flex flex-col">
+    <div className="site-shell">
       <Header />
-      <div className="flex-grow">
+      <div className="site-content">
         {children}
       </div>
       <Footer />
