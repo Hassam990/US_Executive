@@ -66,7 +66,7 @@ export function Services() {
                                     <li className="flex items-center gap-2 text-sm text-white/50"><CheckCircle2 className="w-4 h-4 text-pink-500" /> Professional Chauffeur</li>
                                     <li className="flex items-center gap-2 text-sm text-white/50"><CheckCircle2 className="w-4 h-4 text-pink-500" /> Complimentary Water & Wi-Fi</li>
                                 </ul>
-                                <Link to="/" className="inline-flex items-center text-pink-400 hover:text-pink-300 font-semibold transition-colors">
+                                <Link to="/#booking" className="inline-flex items-center text-pink-400 hover:text-pink-300 font-semibold transition-colors">
                                     Book Now <span className="ml-2 group-hover:translate-x-1 transition-transform">→</span>
                                 </Link>
                             </CardContent>

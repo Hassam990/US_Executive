@@ -33,6 +33,12 @@ interface CardNavProps {
   buttonTextColor?: string;
 }
 
+interface UserProfile {
+  name?: string;
+  email?: string;
+  picture?: string;
+}
+
 const CardNav: React.FC<CardNavProps> = ({
   logo,
   logoAlt = 'Logo',
@@ -47,7 +53,7 @@ const CardNav: React.FC<CardNavProps> = ({
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -248,17 +254,18 @@ const CardNav: React.FC<CardNavProps> = ({
     <div className={`card-nav-container ${className}`}>
       <nav ref={navRef} className={`card-nav ${isExpanded ? 'open' : ''}`} style={{ backgroundColor: baseColor }}>
         <div className="card-nav-top">
-          <div
+          <button
             className={`hamburger-menu ${isHamburgerOpen ? 'open' : ''}`}
             onClick={toggleMenu}
-            role="button"
             aria-label={isExpanded ? 'Close menu' : 'Open menu'}
-            tabIndex={0}
+            aria-expanded={isExpanded}
+            aria-controls="card-nav-content"
             style={{ color: menuColor || '#000' }}
+            type="button"
           >
             <div className="hamburger-line" />
             <div className="hamburger-line" />
-          </div>
+          </button>
 
           <div className="logo-container">
             <Link to="/">
@@ -343,18 +350,16 @@ const CardNav: React.FC<CardNavProps> = ({
             )}
           </div>
 
-          <Link to="/">
-            <button
-              type="button"
-              className="card-nav-cta-button"
-              style={{ backgroundColor: buttonBgColor, color: buttonTextColor }}
-            >
-              Book Now
-            </button>
+          <Link
+            to="/#booking"
+            className="card-nav-cta-button"
+            style={{ backgroundColor: buttonBgColor, color: buttonTextColor }}
+          >
+            Book Now
           </Link>
         </div>
 
-        <div className="card-nav-content" aria-hidden={!isExpanded}>
+        <div id="card-nav-content" className="card-nav-content" aria-hidden={!isExpanded}>
           {(items || []).slice(0, 3).map((item, idx) => (
             <div
               key={`${item.label}-${idx}`}

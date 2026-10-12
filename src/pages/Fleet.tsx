@@ -92,7 +92,7 @@ export function Fleet() {
                                     </div>
 
                                     <div className="mt-auto">
-                                        <Link to="/" className="inline-block px-8 py-3 bg-pink-600 hover:bg-pink-500 text-white font-bold rounded-lg shadow-[0_0_15px_rgba(236,72,153,0.3)] transition-all">
+                                        <Link to="/#booking" className="inline-block px-8 py-3 bg-pink-600 hover:bg-pink-500 text-white font-bold rounded-lg shadow-[0_0_15px_rgba(236,72,153,0.3)] transition-all hover:-translate-y-0.5">
                                             Request this Class
                                         </Link>
                                     </div>

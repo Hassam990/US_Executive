@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { Home } from "./pages/Home";
@@ -33,18 +33,29 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function App() {
-  useEffect(() => {
-    console.log("App Initialized - Live Debugging Active");
-    console.log("Environment Status:", {
-      isDev: import.meta.env.DEV,
-      mode: import.meta.env.MODE,
-      hasGoogleId: !!import.meta.env.VITE_GOOGLE_CLIENT_ID
-    });
-  }, []);
+function ScrollManager() {
+  const { pathname, hash } = useLocation();
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      if (hash) {
+        document.querySelector(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname, hash]);
+
+  return null;
+}
+
+function App() {
   return (
-    <Routes>
+    <>
+      <ScrollManager />
+      <Routes>
       <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
       <Route path="/services" element={<PublicLayout><Services /></PublicLayout>} />
       <Route path="/fleet" element={<PublicLayout><Fleet /></PublicLayout>} />
@@ -56,7 +67,8 @@ function App() {
       <Route path="/apply" element={<PublicLayout><DriverApply /></PublicLayout>} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 

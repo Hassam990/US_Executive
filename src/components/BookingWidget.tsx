@@ -11,7 +11,7 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-let DefaultIcon = L.icon({
+const DefaultIcon = L.icon({
     iconUrl: markerIcon,
     shadowUrl: markerShadow,
     iconSize: [25, 41],
@@ -78,9 +78,9 @@ function AddressAutocomplete({
     onLocationSelect?: (lat: number, lon: number, address: string) => void,
     placeholder: string,
     name: string,
-    icon: any
+    icon: React.ComponentType<{ className?: string }>
 }) {
-    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [suggestions, setSuggestions] = useState<Array<{ display_name: string; lat: string; lon: string }>>([]);
     const [loading, setLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
@@ -126,7 +126,7 @@ function AddressAutocomplete({
         }, 500); // 500ms debounce
     };
 
-    const handleSelect = (s: any) => {
+    const handleSelect = (s: { display_name: string; lat: string; lon: string }) => {
         onChange(name, s.display_name);
         if (onLocationSelect) {
             onLocationSelect(parseFloat(s.lat), parseFloat(s.lon), s.display_name);
@@ -269,7 +269,7 @@ export function BookingWidget() {
             {/* Header Area */}
             <div className="bg-pink-600/20 border-b border-pink-500/20 p-5 md:p-6 flex items-center justify-between">
                 <div>
-                    <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Book a Taxi</h3>
+                    <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">Reserve your journey</h3>
                     <p className="text-white/70 text-[10px] md:text-sm mt-0.5 font-medium uppercase tracking-wider">Fast, reliable, and secure</p>
                 </div>
                 <div className="w-10 h-10 md:w-12 md:h-12 bg-pink-500/30 rounded-xl flex items-center justify-center">
@@ -413,6 +413,7 @@ export function BookingWidget() {
                     {/* Date/Time */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
+                            <Label className="text-white font-semibold">Pick-up date</Label>
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-4 w-5 h-5 text-pink-400/70" />
                                 <Input
@@ -426,6 +427,7 @@ export function BookingWidget() {
                             </div>
                         </div>
                         <div className="space-y-2">
+                            <Label className="text-white font-semibold">Pick-up time</Label>
                             <div className="relative">
                                 <Clock className="absolute left-3 top-4 w-5 h-5 text-pink-400/70" />
                                 <Input

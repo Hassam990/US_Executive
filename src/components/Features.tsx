@@ -1,4 +1,5 @@
-import { Smartphone, ShieldCheck, Clock } from "lucide-react";
+import { ArrowRight, Smartphone, ShieldCheck, Clock } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "./ui/card";
 
 export function Features() {
@@ -65,12 +66,14 @@ export function Features() {
                         </p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-4 relative z-10 w-full md:w-auto">
-                        <button className="px-8 py-4 bg-white text-[#2a0514] rounded-xl font-black hover:bg-pink-100 transition-all hover:scale-105 shadow-lg uppercase tracking-wider text-sm flex items-center justify-center gap-2">
+                        <Link to="/#booking" className="px-8 py-4 bg-white text-[#2a0514] rounded-xl font-black hover:bg-pink-100 transition-all hover:-translate-y-1 shadow-lg uppercase tracking-wider text-sm flex items-center justify-center gap-2">
                             Book Now
-                        </button>
-                        <button className="px-8 py-4 bg-pink-500/20 border border-white/20 text-white rounded-xl font-bold hover:bg-white/10 transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
-                            Visit Our Website
-                        </button>
+                            <ArrowRight className="w-4 h-4" />
+                        </Link>
+                        <Link to="/services" className="px-8 py-4 bg-pink-500/20 border border-white/20 text-white rounded-xl font-bold hover:bg-white/10 transition-all uppercase tracking-wider text-sm flex items-center justify-center gap-2">
+                            Explore services
+                            <ArrowRight className="w-4 h-4" />
+                        </Link>
                     </div>
                 </div>
             </div>

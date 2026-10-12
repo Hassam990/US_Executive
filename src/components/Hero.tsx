@@ -1,5 +1,5 @@
 import { BookingWidget } from "./BookingWidget";
-import { CheckCircle2, Phone } from "lucide-react";
+import { ArrowDown, CheckCircle2, Phone } from "lucide-react";
 
 export function Hero() {
     return (
@@ -30,10 +30,14 @@ export function Hero() {
                         Professional chauffeurs at your service 24/7.
                     </p>
 
-                    <div className="flex flex-col sm:flex-row gap-6 pt-4">
+                    <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                        <a href="#booking" className="inline-flex items-center justify-center gap-3 bg-pink-600 hover:bg-pink-500 text-white font-black px-8 py-4 rounded-xl text-lg transition-all hover:-translate-y-1 shadow-[0_12px_30px_rgba(236,72,153,0.25)]">
+                            Plan your journey
+                            <ArrowDown className="w-5 h-5" />
+                        </a>
                         <a href="tel:07412671467" className="inline-flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-black font-black px-8 py-4 rounded-xl text-lg transition-transform hover:scale-105 shadow-xl">
                             <Phone className="w-6 h-6 text-pink-500" />
-                            07412671467
+                            Call dispatch
                         </a>
                     </div>
 
@@ -58,7 +62,7 @@ export function Hero() {
                 </div>
 
                 {/* Booking Form Widget */}
-                <div className="lg:col-span-5 w-full relative z-20 xl:translate-x-4">
+                <div id="booking" className="lg:col-span-5 w-full relative z-20 xl:translate-x-4 scroll-mt-28">
                     <BookingWidget />
                 </div>
             </div>
