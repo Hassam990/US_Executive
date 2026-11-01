@@ -1,0 +1,31 @@
+.card-spotlight {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.card-spotlight::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    440px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+    var(--spotlight-color, rgba(236, 72, 153, 0.14)),
+    transparent 42%
+  );
+  content: "";
+  opacity: 0;
+  transition: opacity 240ms ease;
+  pointer-events: none;
+}
+
+.card-spotlight:hover::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-spotlight::before {
+    transition: none;
+  }
+}

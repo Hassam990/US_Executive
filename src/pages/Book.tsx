@@ -301,10 +301,10 @@ export default function Book() {
     ][step];
 
     return (
-        <div className="min-h-screen bg-[#080004] overflow-x-hidden">
+        <div className="booking-page">
 
             {/* Map — full width, fixed height */}
-            <div className="relative w-full" style={{ height: 260 }}>
+            <div className="booking-map">
                 <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#080004] pointer-events-none" />
                 {/* Live distance chip */}
@@ -317,8 +317,8 @@ export default function Book() {
             </div>
 
             {/* Form card — slides over map */}
-            <div className="relative -mt-8 mx-0 sm:mx-4 lg:mx-auto lg:max-w-2xl">
-                <div className="bg-[#0f0008] border border-white/10 rounded-t-3xl sm:rounded-3xl px-5 sm:px-8 pt-8 pb-10 shadow-[0_-20px_60px_rgba(0,0,0,0.6)]">
+            <div className="booking-form-wrap">
+                <div className="booking-form-shell">
 
                     <StepBar current={step} />
 

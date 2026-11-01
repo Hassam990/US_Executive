@@ -130,8 +130,8 @@ export function DriverApply() {
 
     if (status === "success") {
         return (
-            <div className="min-h-screen bg-black flex items-center justify-center p-6 mt-20">
-                <div className="max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in duration-500">
+            <main className="site-page driver-apply-page driver-apply-success">
+                <div className="driver-apply-container text-center space-y-6">
                     <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto border border-green-500/30">
                         <CheckCircle2 className="w-10 h-10 text-green-500" />
                     </div>
@@ -139,19 +139,20 @@ export function DriverApply() {
                     <p className="text-white/60 text-lg">Thank you for your interest. Our recruitment team will review your details and contact you shortly.</p>
                     <Button onClick={() => window.location.href = '/'} className="bg-white text-black font-bold h-12 px-8 rounded-full hover:bg-white/90">Return Home</Button>
                 </div>
-            </div>
+            </main>
         );
     }
 
     return (
-        <div className="min-h-screen bg-black pt-24 md:pt-32 pb-20 px-4 md:px-6 relative overflow-hidden">
-            <div className="max-w-2xl mx-auto relative z-10">
-                <div className="text-center mb-8 md:mb-12 space-y-4">
-                    <h1 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter italic">Drive with Us</h1>
-                    <p className="text-pink-500 font-bold uppercase tracking-[0.2em] text-[10px] md:text-sm">Join the US Executive Fleet</p>
-                </div>
+        <main className="site-page driver-apply-page">
+            <div className="driver-apply-container">
+                <header className="page-intro">
+                    <p className="eyebrow">Driver applications</p>
+                    <h1>Drive with us.</h1>
+                    <p>Tell us about your experience and vehicle. Our team will be in touch about the next steps.</p>
+                </header>
 
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                <div className="driver-form-card">
                     <form onSubmit={handleSubmit} className="space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
@@ -261,6 +262,6 @@ export function DriverApply() {
                     </form>
                 </div>
             </div>
-        </div>
+        </main>
     );
 }
