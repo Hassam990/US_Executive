@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import { CheckCircle2, Phone, Plane, Star, Shield, Clock } from "lucide-react";
-import { CarFigure } from "@/components/anatomy/CarFigure";
 
 export function Hero() {
     return (
