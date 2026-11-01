@@ -58,7 +58,7 @@ export function Home() {
                         </div>
                     </div>
 
-                    <div className="relative h-[600px] flex items-center justify-center">
+                    <div className="relative h-[500px] sm:h-[550px] md:h-[600px] flex items-center justify-center">
                         <div className="w-full h-full relative flex items-center justify-center">
                             <CardSwap
                                 width={340}
@@ -67,60 +67,60 @@ export function Home() {
                                 verticalDistance={40}
                                 skewAmount={4}
                             >
-                                <Card className="p-10 flex flex-col justify-between border-white/10 shadow-2xl overflow-hidden group">
+                                <Card className="p-6 sm:p-8 lg:p-10 flex flex-col justify-between border-white/10 shadow-2xl overflow-hidden group">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 blur-3xl group-hover:bg-pink-500/10 transition-colors" />
-                                    <div className="space-y-6 relative z-10">
-                                        <div className="w-14 h-14 bg-pink-600 rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(219,39,119,0.4)]">
-                                            <Car className="text-white w-8 h-8" />
+                                    <div className="space-y-4 sm:space-y-6 relative z-10">
+                                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-pink-600 rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(219,39,119,0.4)]">
+                                            <Car className="text-white w-6 h-6 sm:w-8 sm:h-8" />
                                         </div>
                                         <div>
-                                            <h3 className="text-3xl font-black text-white uppercase tracking-tight mb-2">Airport Transfers</h3>
-                                            <p className="text-white/60 text-lg leading-relaxed">
+                                            <h3 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight mb-2">Airport Transfers</h3>
+                                            <p className="text-white/60 text-base sm:text-lg leading-relaxed">
                                                 Premium chauffeur service to all major UK airports. Real-time flight tracking and meet-and-greet service.
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="pt-6 border-t border-white/10 flex justify-between items-center text-xs font-bold text-pink-400 uppercase tracking-[0.2em] relative z-10">
+                                    <div className="pt-4 sm:pt-6 border-t border-white/10 flex justify-between items-center text-xs font-bold text-pink-400 uppercase tracking-[0.2em] relative z-10">
                                         <span>RELIABLE</span>
                                         <div className="w-2 h-2 rounded-full bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,1)]" />
                                         <span>24/7 AVAILABILITY</span>
                                     </div>
                                 </Card>
 
-                                <Card className="p-10 flex flex-col justify-between border-white/10 shadow-2xl overflow-hidden group">
+                                <Card className="p-6 sm:p-8 lg:p-10 flex flex-col justify-between border-white/10 shadow-2xl overflow-hidden group">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 blur-3xl group-hover:bg-pink-500/10 transition-colors" />
-                                    <div className="space-y-6 relative z-10">
-                                        <div className="w-14 h-14 bg-pink-600 rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(219,39,119,0.4)]">
-                                            <Shield className="text-white w-8 h-8" />
+                                    <div className="space-y-4 sm:space-y-6 relative z-10">
+                                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-pink-600 rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(219,39,119,0.4)]">
+                                            <Shield className="text-white w-6 h-6 sm:w-8 sm:h-8" />
                                         </div>
                                         <div>
-                                            <h3 className="text-3xl font-black text-white uppercase tracking-tight mb-2">Business Class</h3>
-                                            <p className="text-white/60 text-lg leading-relaxed">
+                                            <h3 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight mb-2">Business Class</h3>
+                                            <p className="text-white/60 text-base sm:text-lg leading-relaxed">
                                                 Seamless corporate travel for the modern executive. Professional drivers and immaculate vehicles.
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="pt-6 border-t border-white/10 flex justify-between items-center text-xs font-bold text-pink-400 uppercase tracking-[0.2em] relative z-10">
+                                    <div className="pt-4 sm:pt-6 border-t border-white/10 flex justify-between items-center text-xs font-bold text-pink-400 uppercase tracking-[0.2em] relative z-10">
                                         <span>PROFESSIONAL</span>
                                         <div className="w-2 h-2 rounded-full bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,1)]" />
                                         <span>CONFIDENTIAL</span>
                                     </div>
                                 </Card>
 
-                                <Card className="p-10 flex flex-col justify-between border-white/10 shadow-2xl overflow-hidden group">
+                                <Card className="p-6 sm:p-8 lg:p-10 flex flex-col justify-between border-white/10 shadow-2xl overflow-hidden group">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/5 blur-3xl group-hover:bg-pink-500/10 transition-colors" />
-                                    <div className="space-y-6 relative z-10">
-                                        <div className="w-14 h-14 bg-pink-600 rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(219,39,119,0.4)]">
-                                            <Clock className="text-white w-8 h-8" />
+                                    <div className="space-y-4 sm:space-y-6 relative z-10">
+                                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-pink-600 rounded-2xl flex items-center justify-center shadow-[0_8px_20px_rgba(219,39,119,0.4)]">
+                                            <Clock className="text-white w-6 h-6 sm:w-8 sm:h-8" />
                                         </div>
                                         <div>
-                                            <h3 className="text-3xl font-black text-white uppercase tracking-tight mb-2">Event Travel</h3>
-                                            <p className="text-white/60 text-lg leading-relaxed">
+                                            <h3 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight mb-2">Event Travel</h3>
+                                            <p className="text-white/60 text-base sm:text-lg leading-relaxed">
                                                 Arrive in style for weddings and special occasions. We handle all logistics while you enjoy the ride.
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="pt-6 border-t border-white/10 flex justify-between items-center text-xs font-bold text-pink-400 uppercase tracking-[0.2em] relative z-10">
+                                    <div className="pt-4 sm:pt-6 border-t border-white/10 flex justify-between items-center text-xs font-bold text-pink-400 uppercase tracking-[0.2em] relative z-10">
                                         <span>LUXURIOUS</span>
                                         <div className="w-2 h-2 rounded-full bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,1)]" />
                                         <span>MEMORABLE</span>

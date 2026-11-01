@@ -124,7 +124,6 @@
     background-color: #000;
     color: #fff;
   }
-
   html {
     scroll-behavior: smooth;
     color-scheme: dark;
@@ -139,4 +138,70 @@
     outline: 2px solid #f472b6;
     outline-offset: 3px;
   }
+}
+
+/* ── Clerk component overrides ────────────────────────────────────────────── */
+/* Force white text inside ALL Clerk input fields regardless of internal styles */
+.cl-formFieldInput,
+.cl-formFieldInput input,
+[data-clerk-theme] input,
+[class*="cl-formField"] input {
+  color: #ffffff !important;
+  background-color: #1a000d !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  caret-color: #ec4899 !important;
+}
+
+.cl-formFieldInput::placeholder,
+[data-clerk-theme] input::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* Label text white */
+.cl-formFieldLabel,
+[class*="cl-formField"] label {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* "Last used" badge and hint text */
+.cl-formFieldHintText,
+[class*="cl-badge"] {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Footer text ("Don't have an account?") */
+.cl-footerActionText {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Divider "or" text */
+.cl-dividerText {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Social button text */
+.cl-socialButtonsBlockButtonText {
+  color: #ffffff !important;
+}
+
+/* OTP / verification code inputs */
+.cl-otpCodeFieldInput {
+  color: #ffffff !important;
+  background-color: #1a000d !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* ── Book page — dark pink map tile filter ──────────────────────────────── */
+.leaflet-tile-pane {
+  filter: invert(1) hue-rotate(160deg) saturate(3) brightness(0.35) contrast(1.2);
+}
+
+/* Hide leaflet attribution */
+.leaflet-control-attribution {
+  display: none !important;
+}
+
+/* Remove default leaflet container background flash */
+.leaflet-container {
+  background: #0d0005 !important;
 }

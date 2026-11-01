@@ -6,6 +6,7 @@ const navItems = [
         bgColor: "#1a000a",
         textColor: "#fff",
         links: [
+            { label: "Book a Chauffeur", href: "/book", ariaLabel: "Book Online" },
             { label: "Airport Transfers", href: "/services", ariaLabel: "Airport Transfers" },
             { label: "Business Class", href: "/services", ariaLabel: "Business Class" },
             { label: "Event Travel", href: "/services", ariaLabel: "Event Travel" }

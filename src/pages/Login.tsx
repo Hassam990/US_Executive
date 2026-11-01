@@ -1,234 +1,59 @@
-import { useState, useEffect } from "react";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Lock, User, AlertCircle } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+// @ts-nocheck
+import { SignIn } from '@clerk/react'
+import { dark } from '@clerk/themes'
 
 export function Login() {
-    const navigate = useNavigate();
-    const [status, setStatus] = useState<"idle" | "loading">("idle");
-    const [error, setError] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-
-    // Google Login Integration
-    useEffect(() => {
-        const renderGoogleBtn = () => {
-            try {
-                // @ts-expect-error google is global
-                if (!window.google?.accounts?.id) return;
-                const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "816912441965-ue09q6u0sfc0h8sl6404vpr269rjlaqp.apps.googleusercontent.com";
-                
-                // @ts-expect-error google is global
-                window.google.accounts.id.initialize({
-                    client_id: clientId,
-                    callback: handleGoogleResponse
-                });
-                const btnContainer = document.getElementById("googleBtn");
-                if (btnContainer) {
-                    btnContainer.innerHTML = "";
-                    // @ts-expect-error google is global
-                    window.google.accounts.id.renderButton(btnContainer, {
-                        theme: "filled_blue",
-                        size: "large",
-                        width: 300,
-                        shape: "pill",
-                        text: "signin_with"
-                    });
-                }
-            } catch (err) {
-                console.error("Google SDK Initialization Error:", err);
-            }
-        };
-
-        // @ts-expect-error google is global
-        if (window.google?.accounts?.id) {
-            renderGoogleBtn();
-            return;
-        }
-
-        let script = document.getElementById("google-gsi-client") as HTMLScriptElement | null;
-        if (!script) {
-            script = document.createElement("script");
-            script.id = "google-gsi-client";
-            script.src = "https://accounts.google.com/gsi/client";
-            script.async = true;
-            script.defer = true;
-            document.head.appendChild(script);
-        }
-        script.addEventListener("load", renderGoogleBtn);
-
-        return () => {
-            if (script) {
-                script.removeEventListener("load", renderGoogleBtn);
-            }
-        };
-    }, []);
-
-    const handleGoogleResponse = async (response: any) => {
-        console.log("Google Login Response Received from SDK");
-        setStatus("loading");
-        setError("");
-        try {
-            console.log("Sending credential to backend...");
-            const res = await fetch("/api/admin/google-login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ credential: response.credential })
-            });
-            
-            console.log("Backend Response Status:", res.status);
-            const result = await res.json();
-            console.log("Backend Response Data:", result);
-
-            if (res.ok && result.success) {
-                console.log("Google Login Success, redirecting...");
-                localStorage.setItem('adminToken', result.token);
-                localStorage.setItem('userRole', result.role);
-                
-                if (result.user) {
-                    localStorage.setItem('userData', JSON.stringify(result.user));
-                } else {
-                    localStorage.setItem('userData', JSON.stringify({ email: 'user@example.com', name: 'User' }));
-                }
-                
-                window.dispatchEvent(new Event('auth-change'));
-                
-                if (result.role === 'admin') navigate("/admin");
-                else navigate("/dashboard");
-            } else {
-                console.warn("Google Auth Backend Failed:", result.message);
-                setError(result.message || "Google auth failed. Please check your connection.");
-            }
-        } catch (err) {
-            console.error("Google Auth Network/Fetch Error:", err);
-            setError("Google auth failed. Could not connect to the server.");
-        } finally {
-            setStatus("idle");
-        }
-    };
-
-    const handlePasswordLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        console.log("Login attempt started for:", email);
-        setStatus("loading");
-        setError("");
-        try {
-            const loginPayload = { email, password };
-            console.log("Sending payload:", loginPayload);
-
-            const res = await fetch("/api/admin/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(loginPayload)
-            });
-
-            console.log("Response status:", res.status);
-            const result = await res.json();
-            console.log("Response data:", result);
-
-            if (res.ok && result.success) {
-                console.log("Login successful, role:", result.role);
-                localStorage.setItem('adminToken', result.token);
-                localStorage.setItem('userRole', result.role);
-                if (result.user) {
-                    localStorage.setItem('userData', JSON.stringify(result.user));
-                } else {
-                    localStorage.setItem('userData', JSON.stringify({ email: email, name: email.split('@')[0] }));
-                }
-                
-                if (result.role === 'admin') {
-                    window.dispatchEvent(new Event('auth-change'));
-                    navigate("/admin");
-                } else {
-                    window.dispatchEvent(new Event('auth-change'));
-                    navigate("/dashboard");
-                }
-            } else {
-                console.warn("Login failed:", result.message);
-                setError(result.message || "Invalid Credentials");
-            }
-        } catch (err) {
-            console.error("Password Login Error:", err);
-            setError("Server connection failed. Please try again.");
-        } finally {
-            setStatus("idle");
-        }
-    };
-
     return (
         <div className="min-h-screen bg-black flex items-center justify-center p-6 relative overflow-hidden">
-            {/* Animated Background */}
+            {/* Ambient background */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-pink-900/10 via-black to-black opacity-80" />
-            
-            <div className="w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 md:p-12 relative z-10 shadow-2xl space-y-8">
-                <div className="text-center space-y-2">
-                    <div className="w-16 h-16 bg-pink-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-pink-500/20">
-                        <Lock className="w-8 h-8 text-pink-500" />
-                    </div>
-                    <h1 className="text-3xl font-black text-white uppercase tracking-tight">Welcome Back</h1>
-                    <p className="text-white/40 text-sm font-medium">Please sign in to your account</p>
-                </div>
 
-                <form onSubmit={handlePasswordLogin} className="space-y-5">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-white/40 uppercase tracking-widest pl-2">Email Address</label>
-                        <div className="relative">
-                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-pink-500/50" />
-                            <Input 
-                                type="email"
-                                required
-                                placeholder="name@example.com"
-                                className="bg-black/40 border-white/10 h-14 pl-12 rounded-2xl text-white focus:border-pink-500 transition-all"
-                                value={email}
-                                onChange={e => setEmail(e.target.value)}
-                            />
-                        </div>
-                    </div>
+            <div className="relative z-10 flex flex-col items-center gap-6">
+                {/* Logo */}
+                <img
+                    src="/us_executive_logo.png"
+                    alt="US Executive Travel"
+                    className="h-16 w-auto opacity-90"
+                />
 
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-white/40 uppercase tracking-widest pl-2">Password</label>
-                        <div className="relative">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-pink-500/50" />
-                            <Input 
-                                type="password"
-                                required
-                                placeholder="••••••••"
-                                className="bg-black/40 border-white/10 h-14 pl-12 rounded-2xl text-white focus:border-pink-500 transition-all"
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    {error && (
-                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-2 text-red-400 text-xs font-bold">
-                            <AlertCircle className="w-4 h-4" />
-                            <span>{error}</span>
-                        </div>
-                    )}
-
-                    <Button 
-                        type="submit"
-                        disabled={status === "loading"}
-                        className="w-full h-14 bg-pink-600 hover:bg-pink-500 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-pink-600/20 active:scale-95"
-                    >
-                        {status === "loading" ? "Authenticating..." : "Sign In"}
-                    </Button>
-                </form>
-
-                <div className="relative">
-                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/5"></span></div>
-                    <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-[#0a0a0a] px-4 text-white/20 tracking-[0.3em]">Or continue with</span></div>
-                </div>
-
-                <div id="googleBtn" className="w-full h-14 flex items-center justify-center rounded-2xl overflow-hidden" />
-
-                <div className="pt-2 text-center space-y-4">
-                    <p className="text-white/30 text-xs">Don't have an account? <Link to="/signup" className="text-pink-500 font-bold hover:underline">Sign Up</Link></p>
-                    <p className="text-white/30 text-[10px] uppercase tracking-widest">Interested in driving for us? <Link to="/apply" className="text-pink-500 font-bold hover:underline">Apply Here</Link></p>
-                </div>
+                <SignIn
+                    routing="hash"
+                    appearance={{
+                        baseTheme: dark,
+                        variables: {
+                            colorPrimary: '#ec4899',
+                            colorBackground: '#1a000d',
+                            borderRadius: '1rem',
+                        },
+                        elements: {
+                            card: 'shadow-[0_20px_60px_rgba(236,72,153,0.15)] border border-white/10',
+                            headerTitle: 'text-white font-black uppercase tracking-tight',
+                            headerSubtitle: 'text-white/70',
+                            socialButtonsBlockButton: 'border border-white/20 bg-white/5 hover:bg-white/10 text-white',
+                            socialButtonsBlockButtonText: 'text-white font-bold',
+                            dividerLine: 'bg-white/10',
+                            dividerText: 'text-white/50',
+                            formFieldLabel: 'text-white text-xs font-bold uppercase tracking-widest',
+                            formFieldInput: `
+                                bg-[#1a000d] border border-white/20 text-white rounded-xl h-12
+                                focus:border-pink-500 focus:ring-0
+                                placeholder:text-white/40
+                            `,
+                            formFieldHintText: 'text-white/50',
+                            formFieldErrorText: 'text-red-400',
+                            formButtonPrimary: 'bg-pink-600 hover:bg-pink-500 text-white font-black uppercase tracking-widest rounded-xl h-12',
+                            footerActionLink: 'text-pink-400 hover:text-pink-300 font-bold',
+                            footerActionText: 'text-white/60',
+                            identityPreviewText: 'text-white',
+                            identityPreviewEditButtonIcon: 'text-pink-400',
+                            formResendCodeLink: 'text-pink-400 hover:text-pink-300',
+                            otpCodeFieldInput: 'text-white border-white/20 bg-[#1a000d]',
+                            alternativeMethodsBlockButton: 'text-white/70 hover:text-white border-white/10',
+                            alternativeMethodsBlockButtonText: 'text-white/70',
+                        },
+                    }}
+                />
             </div>
         </div>
-    );
+    )
 }

@@ -1,71 +1,108 @@
-import { BookingWidget } from "./BookingWidget";
-import { ArrowDown, CheckCircle2, Phone } from "lucide-react";
+import { Link } from "react-router-dom";
+import { CheckCircle2, Phone, Plane, Star, Shield, Clock } from "lucide-react";
+import { DispatchConsole } from "@/components/anatomy/DispatchConsole";
 
 export function Hero() {
     return (
-        <section className="relative min-h-screen flex items-center pt-32 md:pt-40 pb-16 overflow-hidden bg-gradient-to-br from-[#160008] via-[#2a0514] to-black">
-            {/* Background Effects */}
-            <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-pink-600/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 z-0" />
-            <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-pink-900/20 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/3 z-0" />
+        <section className="relative min-h-screen flex items-center overflow-hidden bg-[#0d0005]">
 
-            <div className="container mx-auto px-6 relative z-10 grid lg:grid-cols-12 gap-12 items-center">
+            {/* ── Background ── */}
+            <div className="absolute inset-0 z-0">
+                {/* Hero image with dark overlay */}
+                <img
+                    src="/src/assets/hero.png"
+                    alt=""
+                    className="w-full h-full object-cover object-center opacity-20"
+                    aria-hidden="true"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#0d0005] via-[#0d0005]/80 to-[#0d0005]/40" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0d0005] via-transparent to-transparent" />
+            </div>
 
-                {/* Text Content */}
-                <div className="lg:col-span-7 space-y-8 pt-8 md:pt-16">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 backdrop-blur-md shadow-lg">
-                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                        <span className="text-sm font-bold uppercase tracking-wider text-white">24/7 Dispatch Operating Now</span>
+            {/* Ambient glows */}
+            <div className="absolute top-1/4 right-1/4 w-[600px] h-[600px] bg-pink-600/10 rounded-full blur-[150px] pointer-events-none z-0" />
+            <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-pink-900/15 rounded-full blur-[120px] pointer-events-none z-0" />
+
+            <div className="container mx-auto px-6 relative z-10 pt-32 pb-20">
+                <div className="grid gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] lg:items-center lg:gap-y-0 xl:gap-x-20">
+                <div className="max-w-3xl">
+
+                    {/* Live badge */}
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/15 backdrop-blur-md mb-8">
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-xs font-black uppercase tracking-[0.2em] text-white/80">24/7 UK Dispatch Active</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-8xl font-extrabold text-white tracking-tighter leading-[0.95] uppercase">
-                        Travel in <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-pink-600">
+                    {/* Headline */}
+                    <h1 className="text-[clamp(3rem,6.2vw,6rem)] font-black text-white tracking-tighter leading-[0.9] uppercase mb-6">
+                        Travel in<br />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-pink-500 to-pink-600">
                             Style,
-                        </span> <br />
+                        </span><br />
                         Day or Night
                     </h1>
 
-                    <p className="text-xl md:text-2xl text-white/80 leading-relaxed font-light max-w-2xl">
-                        Step into a premium private hire experience designed for comfort, class, and reliability. 
-                        Professional chauffeurs at your service 24/7.
+                    {/* Subheading */}
+                    <p className="text-lg sm:text-xl text-white/60 leading-relaxed font-light max-w-2xl mb-10">
+                        Executive chauffeur transport across the UK. Airport transfers, corporate roadshows, and city journeys — all with a guaranteed fixed fare.
                     </p>
 
-                    <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                        <a href="#booking" className="inline-flex items-center justify-center gap-3 bg-pink-600 hover:bg-pink-500 text-white font-black px-8 py-4 rounded-xl text-lg transition-all hover:-translate-y-1 shadow-[0_12px_30px_rgba(236,72,153,0.25)]">
-                            Plan your journey
-                            <ArrowDown className="w-5 h-5" />
-                        </a>
-                        <a href="tel:07412671467" className="inline-flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-black font-black px-8 py-4 rounded-xl text-lg transition-transform hover:scale-105 shadow-xl">
-                            <Phone className="w-6 h-6 text-pink-500" />
-                            Call dispatch
+                    {/* CTA Buttons */}
+                    <div className="flex flex-wrap items-center gap-4 mb-0 lg:mb-14">
+                        <Link to="/book"
+                            className="inline-flex items-center gap-2.5 bg-pink-600 hover:bg-pink-500 text-white font-black px-8 py-4 rounded-2xl text-base uppercase tracking-widest transition-all hover:scale-105 shadow-[0_10px_40px_rgba(236,72,153,0.4)]">
+                            <Plane className="w-5 h-5" />
+                            Book Now
+                        </Link>
+                        <a href="tel:07412671467"
+                            className="inline-flex items-center gap-2.5 bg-white/5 hover:bg-white/10 border border-white/15 text-white font-black px-8 py-4 rounded-2xl text-base uppercase tracking-widest transition-all hover:scale-105 backdrop-blur-md">
+                            <Phone className="w-5 h-5 text-pink-400" />
+                            07412671467
                         </a>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 pt-6 mt-6 border-t border-white/10">
-                        <div className="flex items-center gap-3">
-                            <CheckCircle2 className="w-6 h-6 text-pink-500" />
-                            <span className="text-lg font-medium text-white/90">Executive Vehicles</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <CheckCircle2 className="w-6 h-6 text-pink-500" />
-                            <span className="text-lg font-medium text-white/90">Professional Drivers</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <CheckCircle2 className="w-6 h-6 text-pink-500" />
-                            <span className="text-lg font-medium text-white/90">Always On Time</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <CheckCircle2 className="w-6 h-6 text-pink-500" />
-                            <span className="text-lg font-medium text-white/90">24/7 Availability</span>
-                        </div>
-                    </div>
                 </div>
 
-                {/* Booking Form Widget */}
-                <div id="booking" className="lg:col-span-5 w-full relative z-20 xl:translate-x-4 scroll-mt-28">
-                    <BookingWidget />
+                <DispatchConsole className="w-full max-w-xl lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:max-w-none" />
+
+                <div className="max-w-3xl lg:col-start-1 lg:row-start-2">
+
+                    {/* Trust stats */}
+                    <div className="flex flex-wrap items-center gap-6 pb-10 border-b border-white/10 mb-10">
+                        {[
+                            { value: "5,000+", label: "Journeys Completed" },
+                            { value: "4.9★",   label: "Average Rating" },
+                            { value: "< 5min", label: "Avg Response Time" },
+                        ].map(({ value, label }) => (
+                            <div key={label}>
+                                <p className="text-2xl font-black text-white">{value}</p>
+                                <p className="text-[11px] text-white/40 font-bold uppercase tracking-widest">{label}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Feature pills */}
+                    <div className="flex flex-wrap gap-3">
+                        {[
+                            { icon: CheckCircle2, text: "DBS Vetted Chauffeurs" },
+                            { icon: Shield,       text: "Licensed & Insured" },
+                            { icon: Plane,        text: "Flight Monitoring" },
+                            { icon: Clock,        text: "60 Min Free Wait" },
+                            { icon: Star,         text: "Fixed Transparent Pricing" },
+                        ].map(({ icon: Icon, text }) => (
+                            <div key={text} className="flex items-center gap-2 px-4 py-2 bg-white/[0.05] border border-white/10 rounded-full">
+                                <Icon className="w-3.5 h-3.5 text-pink-400" />
+                                <span className="text-xs font-bold text-white/80">{text}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                </div>
                 </div>
             </div>
+
+            {/* Bottom fade */}
+            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#0d0005] to-transparent pointer-events-none z-10" />
         </section>
     );
 }

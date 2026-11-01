@@ -6,50 +6,184 @@ import { createClient } from '@supabase/supabase-js';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-123';
+const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || 'hassamazam999@gmail.com')
+    .split(',')
+    .map(e => e.trim().toLowerCase());
+const ADMIN_EMAIL = ADMIN_EMAILS[0]; // legacy compat
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+
+if (!JWT_SECRET) {
+    console.error("CRITICAL: JWT_SECRET environment variable is not set.");
+    process.exit(1);
+}
+if (!ADMIN_EMAIL) {
+    console.error("CRITICAL: ADMIN_EMAIL environment variable is not set.");
+    process.exit(1);
+}
+if (!ADMIN_PASSWORD) {
+    console.error("CRITICAL: ADMIN_PASSWORD environment variable is not set.");
+    process.exit(1);
+}
+if (!GOOGLE_CLIENT_ID) {
+    console.error("CRITICAL: GOOGLE_CLIENT_ID environment variable is not set.");
+    process.exit(1);
+}
+
 const app = express();
 
-app.use(cors());
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || 'https://us-executivetravel.com,http://localhost:5173')
+    .split(',')
+    .map(o => o.trim());
+
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+        if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+            return callback(null, true);
+        }
+        callback(null, false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Request logger
-app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-    next();
-});
+// Request logger (disabled in production to reduce noise)
+if (process.env.NODE_ENV !== 'production') {
+    app.use((req, res, next) => {
+        console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+        next();
+    });
+}
 
 // Auth Middleware
-const authenticateAdmin = (req, res, next) => {
+const authenticateAdmin = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     const token = authHeader.split(' ')[1];
+
+    // 1. Try internal admin JWT (legacy login)
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.admin = decoded;
-        next();
-    } catch (err) {
-        return res.status(401).json({ success: false, message: 'Invalid token' });
+        return next();
+    } catch {
+        // Not an internal JWT — fall through to Clerk
     }
+
+    // 2. Try Clerk token path
+    try {
+        const decoded = jwt.decode(token);
+        let email = null;
+
+        if (decoded?.email) {
+            email = decoded.email.toLowerCase();
+        } else if (decoded?.primary_email) {
+            email = decoded.primary_email.toLowerCase();
+        } else if (req.headers['x-user-email']) {
+            const clerkEmail = req.headers['x-user-email'].toString().trim().toLowerCase();
+            if (decoded?.sub && clerkEmail.includes('@')) {
+                email = clerkEmail;
+            }
+        }
+
+        if (!email && decoded?.sub && process.env.CLERK_SECRET_KEY) {
+            try {
+                const clerkRes = await fetch(`https://api.clerk.com/v1/users/${decoded.sub}`, {
+                    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` }
+                });
+                if (clerkRes.ok) {
+                    const clerkUser = await clerkRes.json();
+                    const primary = clerkUser.email_addresses?.find(e => e.id === clerkUser.primary_email_address_id);
+                    email = (primary?.email_address || '').toLowerCase();
+                }
+            } catch (e) {
+                console.warn('Clerk API lookup failed:', e.message);
+            }
+        }
+
+        if (email && ADMIN_EMAILS.includes(email)) {
+            req.admin = { role: 'admin', email };
+            return next();
+        }
+    } catch (e) {
+        console.warn('Clerk token decode failed:', e.message);
+    }
+
+    return res.status(401).json({ success: false, message: 'Invalid token' });
 };
 
-// Lazy-loaded OAuth2Client to avoid crash on missing CLIENT_ID at startup
-const getGoogleClient = () => {
-    const cid = process.env.CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
-    if (!cid) {
-        console.error("CRITICAL: Missing CLIENT_ID or VITE_GOOGLE_CLIENT_ID environment variable.");
-        return null;
+
+const authenticateUser = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    const clientEmail = (req.query.email || req.headers['x-user-email'] || '').toString().trim().toLowerCase();
+
+    let userEmail = null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+            const adminDecoded = jwt.verify(token, JWT_SECRET);
+            if (adminDecoded && adminDecoded.email) {
+                req.user = { email: clientEmail || adminDecoded.email, isAdmin: true };
+                return next();
+            }
+        } catch {
+            // Not admin
+        }
+
+        try {
+            const decoded = jwt.decode(token);
+            if (decoded && decoded.sub) {
+                if (decoded.email || decoded.primary_email) {
+                    userEmail = (decoded.email || decoded.primary_email).toLowerCase();
+                } else if (process.env.CLERK_SECRET_KEY) {
+                    try {
+                        const clerkRes = await fetch(`https://api.clerk.com/v1/users/${decoded.sub}`, {
+                            headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` }
+                        });
+                        if (clerkRes.ok) {
+                            const clerkUser = await clerkRes.json();
+                            const primaryObj = clerkUser.email_addresses?.find(e => e.id === clerkUser.primary_email_address_id);
+                            userEmail = (primaryObj?.email_address || clerkUser.email_addresses?.[0]?.email_address || '').toLowerCase();
+                        }
+                    } catch (err) {
+                        console.warn('Clerk API fetch error:', err.message);
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('Token decode error:', err);
+        }
     }
-    return new OAuth2Client(cid);
+
+    if (!userEmail && clientEmail && clientEmail.includes('@')) {
+        userEmail = clientEmail;
+    }
+
+    if (!userEmail) {
+        return res.status(401).json({ success: false, message: 'Authentication required to view your portal.' });
+    }
+
+    req.user = { email: userEmail };
+    next();
 };
 
-// Supabase initialization with support for multiple naming conventions
+// OAuth2Client initialized once at startup
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+// Supabase initialization — only use anon key, never service role
 const getSupabase = () => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
     if (!url || !key) {
         console.error("CRITICAL: Missing Supabase URL or Key. Check Vercel Env Vars.");
         return null;
@@ -65,11 +199,11 @@ const transporter = nodemailer.createTransport({
     port: parseInt(process.env.SMTP_PORT || '587'),
     secure: false, // STARTTLS on port 587
     auth: {
-        user: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
+        user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
     tls: {
-        rejectUnauthorized: false
+        rejectUnauthorized: process.env.TLS_REJECT_UNAUTHORIZED !== 'false'
     }
 });
 
@@ -80,8 +214,8 @@ app.get('/api/health', (req, res) => {
         msg: 'Serverless backend is alive!',
         config: {
             has_supabase: !!supabase,
-            has_google_cid: !!(process.env.CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID),
-            has_jwt_secret: !!process.env.JWT_SECRET,
+            has_google_cid: !!GOOGLE_CLIENT_ID,
+            has_jwt_secret: !!JWT_SECRET,
             node_env: process.env.NODE_ENV
         }
     });
@@ -253,9 +387,10 @@ app.post('/api/apply', async (req, res) => {
 // User Signup
 app.post('/api/admin/signup', (req, res) => {
     const { name, email, password } = req.body;
-    const adminEmail = 'hassamazam999@gmail.com';
-    const role = (email === adminEmail) ? 'admin' : 'user';
-    console.log(`New Signup: ${name} (${email}) - Role: ${role}`);
+    const role = (ADMIN_EMAILS.includes(email.toLowerCase())) ? 'admin' : 'user';
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`New Signup: ${name} (${email}) - Role: ${role}`);
+    }
     const token = jwt.sign({ role, email, name }, JWT_SECRET, { expiresIn: '24h' });
     res.status(200).json({ token, role, success: true });
 });
@@ -263,24 +398,24 @@ app.post('/api/admin/signup', (req, res) => {
 // Admin & User Auth
 app.post('/api/admin/login', (req, res) => {
     const { email, password } = req.body;
-    const adminEmail = 'hassamazam999@gmail.com';
-    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
-    
-    if (email === adminEmail && password === adminPass) {
+
+    if (ADMIN_EMAILS.includes(email.toLowerCase()) && password === ADMIN_PASSWORD) {
+        if (process.env.NODE_ENV !== 'production') {
+            console.log("Admin Login Success");
+        }
         const token = jwt.sign({ role: 'admin', email }, JWT_SECRET, { expiresIn: '24h' });
         return res.status(200).json({ token, role: 'admin', success: true });
-    } else if (password === 'user123') { 
-        const token = jwt.sign({ role: 'user', email }, JWT_SECRET, { expiresIn: '24h' });
-        return res.status(200).json({ token, role: 'user', success: true });
     } else {
+        if (process.env.NODE_ENV !== 'production') {
+            console.log("Login Denied: Invalid Credentials");
+        }
         res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 });
 
 // Admin Dashboard Data
 app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
-    const adminEmail = 'hassamazam999@gmail.com';
-    if (req.admin.role !== 'admin' || (req.admin.email && req.admin.email !== adminEmail)) {
+    if (req.admin.role !== 'admin' || (req.admin.email && !ADMIN_EMAILS.includes(req.admin.email.toLowerCase()))) {
         return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
@@ -331,12 +466,13 @@ app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
 });
 
 // User Dashboard Data
-app.get('/api/user/dashboard', authenticateAdmin, async (req, res) => {
+app.get('/api/user/dashboard', authenticateUser, async (req, res) => {
     if (!supabase) {
         return res.status(200).json({ bookings: [], success: true, dbConnected: false });
     }
     try {
-        const { data: bookings } = await supabase.from('bookings').select('*').eq('email', req.admin.email).order('created_at', { ascending: false });
+        const userEmail = req.user.email;
+        const { data: bookings } = await supabase.from('bookings').select('*').eq('email', userEmail).order('created_at', { ascending: false });
         res.status(200).json({ bookings: bookings || [], success: true, dbConnected: true });
     } catch (error) {
         res.status(200).json({ bookings: [], success: true, error: error.message });
@@ -371,27 +507,20 @@ app.delete('/api/admin/bookings/:id', authenticateAdmin, async (req, res) => {
 // Google Login Verification
 app.post('/api/admin/google-login', async (req, res) => {
     const { credential } = req.body;
-    console.log("Serverless Google Login Attempt - Token length:", credential?.length);
-    
-    try {
-        const client = getGoogleClient();
-        if (!client) {
-            return res.status(500).json({ success: false, message: 'Google Auth not configured on server (Missing CLIENT_ID)' });
-        }
 
-        const ticket = await client.verifyIdToken({
+    try {
+        const ticket = await googleClient.verifyIdToken({
             idToken: credential,
-            audience: [process.env.CLIENT_ID, process.env.VITE_GOOGLE_CLIENT_ID].filter(Boolean),
+            audience: GOOGLE_CLIENT_ID,
         });
         const payload = ticket.getPayload();
         const email = payload['email'];
-        const adminEmail = 'hassamazam999@gmail.com';
-        const role = (email === adminEmail) ? 'admin' : 'user';
+        const role = (ADMIN_EMAILS.includes(email.toLowerCase())) ? 'admin' : 'user';
         const token = jwt.sign({ role, email }, JWT_SECRET, { expiresIn: '24h' });
         res.status(200).json({ success: true, token, role, user: { name: payload['name'], email, picture: payload['picture'] } });
     } catch (error) {
         console.error("Google verify error:", error.message);
-        res.status(400).json({ success: false, message: 'Google Verification Failed: ' + error.message });
+        res.status(400).json({ success: false, message: 'Google Verification Failed' });
     }
 });
 
