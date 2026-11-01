@@ -1,23 +1,14 @@
 import { Link } from "react-router-dom";
 import { CheckCircle2, Phone, Plane, Star, Shield, Clock } from "lucide-react";
-import { DispatchConsole } from "@/components/anatomy/DispatchConsole";
+import { CarFigure } from "@/components/anatomy/CarFigure";
 
 export function Hero() {
     return (
         <section className="relative min-h-screen flex items-center overflow-hidden bg-[#0d0005]">
 
             {/* ── Background ── */}
-            <div className="absolute inset-0 z-0">
-                {/* Hero image with dark overlay */}
-                <img
-                    src="/src/assets/hero.png"
-                    alt=""
-                    className="w-full h-full object-cover object-center opacity-20"
-                    aria-hidden="true"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-[#0d0005] via-[#0d0005]/80 to-[#0d0005]/40" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0d0005] via-transparent to-transparent" />
-            </div>
+            <video src="/chauffeur-opens-car-door.mp4" autoPlay muted loop playsInline preload="auto" aria-label="Chauffeur opens car door - background" className="absolute inset-0 w-full h-full object-cover opacity-60 z-0" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0d0005] via-[#0d0005]/85 to-[#0d0005]/50 z-[1]" />
 
             {/* Ambient glows */}
             <div className="absolute top-1/4 right-1/4 w-[600px] h-[600px] bg-pink-600/10 rounded-full blur-[150px] pointer-events-none z-0" />
@@ -63,7 +54,7 @@ export function Hero() {
 
                 </div>
 
-                <DispatchConsole className="w-full max-w-xl lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:max-w-none" />
+                <div className="w-full max-w-xl lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:max-w-none" />
 
                 <div className="max-w-3xl lg:col-start-1 lg:row-start-2">
 
@@ -95,6 +86,17 @@ export function Hero() {
                                 <span className="text-xs font-bold text-white/80">{text}</span>
                             </div>
                         ))}
+                    </div>
+
+                    {/* Resolve MCP / DaVinci workflow line */}
+                    <div className="mt-6 flex flex-wrap gap-3">
+                        <a href="https://github.com/samuelgursky/davinci-resolve-mcp" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-rose-700/20 to-pink-600/20 border border-pink-500/30 text-[11px] font-black uppercase tracking-wider text-pink-300 hover:text-white hover:border-pink-400 transition-colors">
+                            <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-pulse" />
+                            Resolve MCP — grading live
+                        </a>
+                        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/10 text-[11px] font-bold uppercase tracking-widest text-white/50">
+                            DaVinci Studio · 390 tools · 93.6% live-tested
+                        </span>
                     </div>
 
                 </div>

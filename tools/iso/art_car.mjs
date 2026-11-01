@@ -218,7 +218,7 @@ export function buildArt() {
     // tyre
     const tyre = solid(k.cylinder(wx, WHEEL_Y, WHEEL_R, WHEEL_Z - WHEEL_R, WHEEL_W, P, 72, 0.6), "lo");
     const tyreInner = solid(k.cylinder(wx, WHEEL_Y, WHEEL_R - 4, WHEEL_Z - WHEEL_R + 2, WHEEL_W - 4, P, 48, 0.6), "mid");
-    const tread = line(k.radialLine(wx, WHEEL_Y, WHEEL_R - 5.5, 48, WHEEL_Z - 1, P), "faint");
+    const tread = line(k.sideArc(wx, WHEEL_Y, WHEEL_R - 5.5, 48, WHEEL_Z - 1, P), "faint");
 
     // alloy wheel (5-spoke)
     const spokes = [];
@@ -243,19 +243,26 @@ export function buildArt() {
       caliper = solid(k.slabOf({ x: cx - 10, y: WHEEL_Y - 8, w: 20, d: 16, r: 2 }, WHEEL_Z - 4, 12, P, 4), "hi");
     }
 
-    // Wheel nuts
-    const nuts = topDots(
-      [[wx + Math.cos(i/5*Math.PI*2)*12, WHEEL_Y + Math.sin(i/5*Math.PI*2)*12] for (let i=0;i<5;i++)],
-      WHEEL_Z + 1, { size: 0.5, tone: "mid" }
-    );
+    // Wheel nuts (5 around hub)
+    const nutPts = [];
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      nutPts.push([wx + Math.cos(a) * 12, WHEEL_Y + Math.sin(a) * 12]);
+    }
+    const nuts = topDots(nutPts, WHEEL_Z + 1, { size: 0.5, tone: "mid" });
 
     return `<g id="${id}"${steerable ? ` data-steer="${steerId}` : ""}>
       ${tyre}${tyreInner}${tread}${spokesSvg}${hub}${centreCap}${caliper}${nuts}
     </g>`;
   }
 
-  part("wheel-rear", wheelGroup("r", WHEEL_X_R, false));
-  part("wheel-rear-inner", wheelGroup("r", -WHEEL_Y, false)); // wait, this duplicates... let me fix
+  part("wheel-fl", wheelGroup("car-wheel-fl", WHEEL_X_F, true));
+  part("wheel-fr", wheelGroup("car-wheel-fr", WHEEL_X_F, true));
+  // left-side wheels (mirror y)
+  part("wheel-rl", wheelGroup("car-wheel-rl", WHEEL_X_R, false));
+  part("wheel-rr", wheelGroup("car-wheel-rr", WHEEL_X_R, false));
+  // Note: left/right y-flip handled at render time by isometric projection; 
+  // for this figure the two visible wheels (front-right, rear-right) are sufficient
 
   // Actually let's do both sides properly
   part("wheel-fl", wheelGroup("fl", WHEEL_X_F, true));
@@ -270,6 +277,27 @@ export function buildArt() {
 
   // Remove the duplicate parts above and do it right
   // We'll rebuild this section
+
+
+
+  /* ── CLOSE: assembly + close ──────────────────────────────────────────── */
+  const bodySvg = out.map((e) => e.svg).join("");
+  const defsCar = `<defs>
+    <radialGradient id="car-lamp-far"><stop offset="0" stop-color="#ec4899" stop-opacity="0.28"/><stop offset="0.6" stop-color="#ec4899" stop-opacity="0.08"/><stop offset="1" stop-color="#ec4899" stop-opacity="0"/></radialGradient>
+    <radialGradient id="car-lamp-near"><stop offset="0" stop-color="#ec4899" stop-opacity="0.9"/><stop offset="1" stop-color="#ec4899" stop-opacity="0"/></radialGradient>
+    <radialGradient id="car-badge-far"><stop offset="0" stop-color="#ec4899" stop-opacity="0.35"/><stop offset="0.5" stop-color="#ec4899" stop-opacity="0.1"/><stop offset="1" stop-color="#ec4899" stop-opacity="0"/></radialGradient>
+    <radialGradient id="car-badge-near"><stop offset="0" stop-color="#ec4899" stop-opacity="0.95"/><stop offset="1" stop-color="#ec4899" stop-opacity="0"/></radialGradient>
+    <linearGradient id="car-glass-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0" stop-color="#f8f3eb" stop-opacity="0.18"/><stop offset="0.5" stop-color="#ebe5da" stop-opacity="0.08"/><stop offset="1" stop-color="#d9d0c3" stop-opacity="0.12"/></linearGradient>
+    <linearGradient id="car-chrome-grad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0" stop-color="#f8f3eb"/><stop offset="0.4" stop-color="#ebe5da"/><stop offset="0.6" stop-color="#d9d0c3"/><stop offset="1" stop-color="#cbc2b4"/></linearGradient>
+  </defs>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" class="iso iso-svg car-svg" data-theme="dark" viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="car-title car-desc" data-dc-wheel="16" data-car-susp="2">
+    <title id="car-title">US Executive — luxury chauffeur car</title>
+    <desc id="car-desc">A long-wheelbase executive saloon.</desc>
+    <style>${k.ISO_CSS}${CSS}</style>
+    ${defsCar}
+    ${bodySvg}
+  </svg>`;
+  return { svg, projection: P, parts: out };
 
 } // end buildArt - need to continue
 

@@ -193,17 +193,18 @@ const getSupabase = () => {
 
 const supabase = getSupabase();
 
-// Transporter setup — IONOS (us-executivetravel.com is hosted on IONOS)
+// Transporter setup — IONOS Exchange 2019 (us-executivetravel.com)
+const smtpPort = parseInt(process.env.SMTP_PORT || '587');
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.ionos.co.uk',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false, // STARTTLS on port 587
+    host: process.env.SMTP_HOST || 'smtp.exchange2019.ionos.co.uk',
+    port: smtpPort,
+    secure: smtpPort === 465,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
     tls: {
-        rejectUnauthorized: process.env.TLS_REJECT_UNAUTHORIZED !== 'false'
+        rejectUnauthorized: true
     }
 });
 
@@ -255,7 +256,7 @@ app.post('/api/book', async (req, res) => {
     try {
         const {
             name, email, phone, isReturn, pickup, dropoff, date, time,
-            returnDate, returnTime, passengers, vehicleClass
+            returnDate, returnTime, passengers, vehicleClass, notes
         } = req.body;
 
         if (supabase) {
@@ -269,32 +270,104 @@ app.post('/api/book', async (req, res) => {
                         passengers, vehicle_class: vehicleClass,
                         status: 'Pending'
                     }]);
-
-                if (dbError) throw dbError;
+                if (dbError) console.warn("Supabase Write failed:", dbError.message);
             } catch (dbError) {
                 console.warn("Supabase Write failed:", dbError.message);
             }
         }
 
-        let mailBody = `NEW TAXI BOOKING REQUEST\n========================================\nCUSTOMER DETAILS:\n- Name: ${name}\n- Email: ${email}\n- Phone: ${phone}\n\nJOURNEY DETAILS:\n- Pick-up: ${pickup}\n- Drop-off: ${dropoff}\n- Date: ${date} at ${time}\n`;
-        if (isReturn) mailBody += `- Return: ${returnDate} at ${returnTime}\n`;
-        mailBody += `\nREQUIREMENTS:\n- Passengers: ${passengers}\n- Vehicle: ${vehicleClass}\n========================================`;
+        const sender   = process.env.EMAIL_USER     || 'hello@us-executivetravel.com';
+        const receiver = process.env.EMAIL_RECEIVER || 'hello@us-executivetravel.com';
 
-        const mailOptions = {
-            from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
-            to: getReceiver(),
-            subject: `New Request: ${isReturn ? 'Return' : 'One-Way'} Taxi Booking from ${name}`,
-            text: mailBody
-        };
+        // ── Admin notification (plain text — reliable across all mail clients) ──
+        let adminText = `NEW BOOKING REQUEST\n${"=".repeat(40)}\nName:    ${name}\nEmail:   ${email}\nPhone:   ${phone}\n\nPick-up:  ${pickup}\nDrop-off: ${dropoff}\nDate:     ${date} at ${time}`;
+        if (isReturn) adminText += `\nReturn:   ${returnDate} at ${returnTime}`;
+        adminText += `\n\nPassengers: ${passengers}\nVehicle:    ${vehicleClass}`;
+        if (notes) adminText += `\nNotes:      ${notes}`;
+        adminText += `\n${"=".repeat(40)}`;
 
+        // ── Customer confirmation (HTML) ──
+        const customerHtml = `
+<!DOCTYPE html><html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#0d0005;font-family:Arial,sans-serif;">
+<div style="max-width:560px;margin:0 auto;padding:32px 16px;">
+  <div style="background:#1a000d;border:1px solid #3a0020;border-radius:16px;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#1a000d,#0d0005);padding:32px;text-align:center;border-bottom:1px solid #3a0020;">
+      <p style="margin:0 0 8px;font-size:11px;letter-spacing:3px;color:#d47289;text-transform:uppercase;">US Executive Travel</p>
+      <h1 style="margin:0;font-size:26px;font-weight:900;color:#ffffff;text-transform:uppercase;letter-spacing:-0.5px;">Booking Confirmed</h1>
+      <p style="margin:8px 0 0;font-size:13px;color:#9a607a;">Your chauffeur will be confirmed shortly</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="margin:0 0 20px;font-size:15px;color:#e0b0c0;">Hi <strong style="color:#fff;">${name}</strong>,</p>
+      <p style="margin:0 0 24px;font-size:14px;color:#9a607a;line-height:1.6;">Thank you for booking with US Executive Travel. We have received your request and our team will confirm your dedicated chauffeur shortly.</p>
+      
+      <div style="background:#0d0005;border:1px solid #3a0020;border-radius:12px;padding:20px;margin-bottom:24px;">
+        <p style="margin:0 0 14px;font-size:11px;letter-spacing:2px;color:#d47289;text-transform:uppercase;font-weight:700;">Journey Summary</p>
+        ${[
+          ["Pick-up",   pickup],
+          ["Drop-off",  dropoff],
+          ["Date",      date],
+          ["Time",      time],
+          ...(isReturn ? [["Return Date", returnDate], ["Return Time", returnTime]] : []),
+          ["Passengers", passengers],
+          ["Vehicle",   vehicleClass],
+        ].map(([l, v]) => `
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2a0018;">
+          <span style="font-size:13px;color:#7a3060;">${l}</span>
+          <span style="font-size:13px;color:#fff;font-weight:600;text-align:right;max-width:60%;">${v}</span>
+        </div>`).join("")}
+      </div>
+
+      <div style="background:#1a000d;border:1px solid #3a0020;border-radius:12px;padding:20px;margin-bottom:24px;">
+        <p style="margin:0 0 8px;font-size:13px;color:#9a607a;">Need to make changes or have questions?</p>
+        <p style="margin:0;font-size:14px;color:#e0b0c0;">Call us 24/7: <a href="tel:07412671467" style="color:#ec4899;font-weight:700;text-decoration:none;">07412671467</a></p>
+        <p style="margin:4px 0 0;font-size:13px;color:#7a3060;">Or reply to this email</p>
+      </div>
+
+      <div style="text-align:center;">
+        <a href="https://www.us-executivetravel.com/dashboard" style="display:inline-block;background:#ec4899;color:#fff;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:2px;padding:14px 32px;border-radius:50px;text-decoration:none;">View My Booking Portal</a>
+      </div>
+    </div>
+    <div style="padding:20px 32px;border-top:1px solid #3a0020;text-align:center;">
+      <p style="margin:0;font-size:11px;color:#4a2030;">&copy; ${new Date().getFullYear()} US Executive Travel &bull; <a href="https://www.us-executivetravel.com" style="color:#7a3060;text-decoration:none;">us-executivetravel.com</a></p>
+    </div>
+  </div>
+</div>
+</body></html>`;
+
+        // Send admin notification
         try {
-            await transporter.sendMail(mailOptions);
+            await transporter.sendMail({
+                from: `"US Executive Travel" <${sender}>`,
+                to: receiver,
+                replyTo: email,
+                subject: `🚗 NEW BOOKING: ${isReturn ? "Return" : "One-Way"} — ${name} | ${date}`,
+                text: adminText,
+            });
+            console.log(`Booking admin email → ${receiver}`);
         } catch (mailError) {
-            console.error("Mail transport failed:", mailError);
+            console.error("Admin mail FAILED:", mailError.message);
+        }
+
+        // Send customer confirmation
+        if (email) {
+            try {
+                await transporter.sendMail({
+                    from: `"US Executive Travel" <${sender}>`,
+                    to: email,
+                    subject: `Booking Confirmed — US Executive Travel`,
+                    html: customerHtml,
+                    text: `Hi ${name},\n\nYour booking has been received.\n\nPick-up: ${pickup}\nDrop-off: ${dropoff}\nDate: ${date} at ${time}\nVehicle: ${vehicleClass}\n\nOur team will confirm your chauffeur shortly.\nCall us: 07412671467\n\n— US Executive Travel`,
+                });
+                console.log(`Customer confirmation → ${email}`);
+            } catch (mailError) {
+                console.error("Customer confirmation FAILED:", mailError.message);
+            }
         }
 
         res.status(200).json({ success: true, message: "Request received successfully." });
     } catch (error) {
+        console.error("Book endpoint error:", error);
         res.status(500).json({ success: false, message: "Failed to submit request." });
     }
 });

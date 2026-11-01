@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://us_executivetravel.com/sitemap.xml
