@@ -7,6 +7,8 @@ const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
+const { verifyClerkToken } = require('./clerkAuth.cjs');
+const JWT_OPTIONS = { issuer: 'us-executive-api', audience: 'us-executive-users' };
 const validator = require('validator');
 const {
     bookingAdminEmail,
@@ -36,6 +38,7 @@ if (!GOOGLE_CLIENT_ID){ console.error('CRITICAL: GOOGLE_CLIENT_ID not set.'); pr
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
+app.set('trust proxy', 1);
 
 // ─── Security Headers (helmet) ────────────────────────────────────────────────
 // FIX #5: Add all HTTP security headers
@@ -122,64 +125,52 @@ const analyticsLimiter = rateLimit({
 });
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
+async function getClerkEmail(claims) {
+    if (claims?.sub && process.env.CLERK_SECRET_KEY) {
+        try {
+            const response = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(claims.sub)}`, {
+                headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
+                signal: AbortSignal.timeout(5000),
+            });
+            if (response.ok) {
+                const user = await response.json();
+                if (user.id === claims.sub) {
+                    const primary = user.email_addresses?.find((item) => item.id === user.primary_email_address_id);
+                    return (primary?.email_address || '').toLowerCase();
+                }
+            }
+        } catch (error) {
+            console.warn('Clerk API lookup failed:', error.message);
+        }
+    }
+    return claims?.email_verified === true ? String(claims.email || claims.primary_email || '').toLowerCase() : null;
+}
+
 const authenticateAdmin = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-    const token = authHeader.split(' ')[1];
-
-    // 1. Try internal admin JWT first (legacy login)
+    const token = authHeader.slice(7);
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.admin = decoded;
-        return next();
+        const decoded = jwt.verify(token, JWT_SECRET, { ...JWT_OPTIONS, algorithms: ['HS256'] });
+        if (decoded.role === 'admin' && ADMIN_EMAILS.includes(String(decoded.email || '').toLowerCase())) {
+            req.admin = decoded;
+            return next();
+        }
     } catch {
-        // Not an internal JWT — try Clerk token path below
+        // Continue with verified Clerk authentication.
     }
-
-    // 2. Try Clerk token: decode and look up email via x-user-email header or Clerk API
     try {
-        const decoded = jwt.decode(token);
-        let email = null;
-
-        // Clerk v6 may embed email in the token payload
-        if (decoded?.email) {
-            email = decoded.email.toLowerCase();
-        } else if (decoded?.primary_email) {
-            email = decoded.primary_email.toLowerCase();
-        } else if (req.headers['x-user-email']) {
-            // Fallback: trust the header only if we can also verify sub exists
-            const clerkEmail = req.headers['x-user-email'].toString().trim().toLowerCase();
-            if (decoded?.sub && validator.isEmail(clerkEmail)) {
-                email = clerkEmail;
-            }
-        }
-
-        // If we still don't have an email, try Clerk API with the secret key
-        if (!email && decoded?.sub && process.env.CLERK_SECRET_KEY) {
-            try {
-                const clerkRes = await fetch(`https://api.clerk.com/v1/users/${decoded.sub}`, {
-                    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` }
-                });
-                if (clerkRes.ok) {
-                    const clerkUser = await clerkRes.json();
-                    const primary = clerkUser.email_addresses?.find(e => e.id === clerkUser.primary_email_address_id);
-                    email = (primary?.email_address || '').toLowerCase();
-                }
-            } catch (e) {
-                console.warn('Clerk API lookup failed:', e.message);
-            }
-        }
-
+        const claims = await verifyClerkToken(token);
+        const email = await getClerkEmail(claims);
         if (email && ADMIN_EMAILS.includes(email)) {
             req.admin = { role: 'admin', email };
             return next();
         }
-    } catch (e) {
-        console.warn('Clerk token decode failed:', e.message);
+    } catch {
+        // Invalid or expired token.
     }
-
     return res.status(401).json({ success: false, message: 'Invalid or expired token' });
 };
 
@@ -187,61 +178,25 @@ const authenticateAdmin = async (req, res, next) => {
 // User authentication supporting Clerk tokens, Admin tokens, and verified email
 const authenticateUser = async (req, res, next) => {
     const authHeader = req.headers.authorization;
-    const clientEmail = (req.query.email || req.headers['x-user-email'] || '').toString().trim().toLowerCase();
-
-    let userEmail = null;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.split(' ')[1];
-
-        // 1. Check if token is internal Admin JWT
-        try {
-            const adminDecoded = jwt.verify(token, JWT_SECRET);
-            if (adminDecoded && adminDecoded.email) {
-                req.user = { email: clientEmail || adminDecoded.email, isAdmin: true };
-                return next();
-            }
-        } catch {
-            // Not admin JWT, continue to Clerk
-        }
-
-        // 2. Decode Clerk token
-        try {
-            const decoded = jwt.decode(token);
-            if (decoded && decoded.sub) {
-                if (decoded.email || decoded.primary_email) {
-                    userEmail = (decoded.email || decoded.primary_email).toLowerCase();
-                } else if (process.env.CLERK_SECRET_KEY) {
-                    try {
-                        const clerkRes = await fetch(`https://api.clerk.com/v1/users/${decoded.sub}`, {
-                            headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` }
-                        });
-                        if (clerkRes.ok) {
-                            const clerkUser = await clerkRes.json();
-                            const primaryObj = clerkUser.email_addresses?.find(e => e.id === clerkUser.primary_email_address_id);
-                            userEmail = (primaryObj?.email_address || clerkUser.email_addresses?.[0]?.email_address || '').toLowerCase();
-                        }
-                    } catch (err) {
-                        console.warn('Clerk API fetch warning:', err.message);
-                    }
-                }
-            }
-        } catch (err) {
-            console.warn('Token decode warning:', err);
-        }
-    }
-
-    // 3. Fallback to client-supplied email if valid
-    if (!userEmail && clientEmail && validator.isEmail(clientEmail)) {
-        userEmail = clientEmail;
-    }
-
-    if (!userEmail) {
+    if (!authHeader?.startsWith('Bearer ')) {
         return res.status(401).json({ success: false, message: 'Authentication required to view your portal.' });
     }
-
+    const token = authHeader.slice(7);
+    let userEmail = null;
+    try {
+        const claims = jwt.verify(token, JWT_SECRET, { ...JWT_OPTIONS, algorithms: ['HS256'] });
+        if (['admin', 'user'].includes(claims.role)) userEmail = String(claims.email || '').toLowerCase();
+    } catch {
+        try {
+            const claims = await verifyClerkToken(token);
+            userEmail = await getClerkEmail(claims);
+        } catch {
+            // Invalid or expired token.
+        }
+    }
+    if (!userEmail) return res.status(401).json({ success: false, message: 'Authentication required to view your portal.' });
     req.user = { email: userEmail };
-    next();
+    return next();
 };
 
 // ─── Input Sanitizer ─────────────────────────────────────────────────────────
@@ -528,19 +483,8 @@ app.post('/api/apply', formLimiter, async (req, res) => {
 // AUTH ROUTES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// FIX #6: Signup — no longer issues JWT to anonymous signups; users must log in via Google
-// This endpoint now only registers intent; actual auth is done via Google or admin login
-app.post('/api/admin/signup', formLimiter, (req, res) => {
-    const name  = sanitize(req.body.name);
-    const email = sanitizeEmail(req.body.email);
-    if (!name || !email) {
-        return res.status(400).json({ success: false, message: 'Name and email required.' });
-    }
-    // Only issue a token for the known admin email; all others get user role via Google OAuth only
-    const role  = (ADMIN_EMAILS.includes(email.toLowerCase())) ? 'admin' : 'user';
-    const token = jwt.sign({ role, email, name }, JWT_SECRET, { expiresIn: '24h' });
-    res.status(200).json({ token, role, success: true });
-});
+// Registration is handled by Clerk; this legacy endpoint must never mint tokens.
+app.post('/api/admin/signup', (_req, res) => res.status(410).json({ success: false, message: 'Use the identity provider to sign up.' }));
 
 // ─── Admin Login ──────────────────────────────────────────────────────────────
 // FIX #7 & #17: No longer logs req.body; FIX #1: rate limited
@@ -553,7 +497,7 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
     }
 
     if (ADMIN_EMAILS.includes(email.toLowerCase()) && password === ADMIN_PASSWORD) {
-        const token = jwt.sign({ role: 'admin', email }, JWT_SECRET, { expiresIn: '8h' });
+        const token = jwt.sign({ role: 'admin', email }, JWT_SECRET, { expiresIn: '8h', ...JWT_OPTIONS });
         return res.status(200).json({ token, role: 'admin', success: true });
     }
 
@@ -572,7 +516,7 @@ app.post('/api/admin/google-login', loginLimiter, async (req, res) => {
         const payload = ticket.getPayload();
         const email   = payload['email'];
         const role    = (ADMIN_EMAILS.includes(email.toLowerCase())) ? 'admin' : 'user';
-        const token   = jwt.sign({ role, email }, JWT_SECRET, { expiresIn: '8h' });
+        const token   = jwt.sign({ role, email }, JWT_SECRET, { expiresIn: '8h', ...JWT_OPTIONS });
         res.status(200).json({
             success: true, token, role,
             user: { name: payload['name'], email: payload['email'], picture: payload['picture'] },

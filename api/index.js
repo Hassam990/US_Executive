@@ -5,6 +5,11 @@ import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
+import clerkAuth from '../server/clerkAuth.cjs';
+
+const { verifyClerkToken } = clerkAuth;
+const JWT_OPTIONS = { issuer: 'us-executive-api', audience: 'us-executive-users' };
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || 'hassamazam999@gmail.com')
@@ -32,6 +37,11 @@ if (!GOOGLE_CLIENT_ID) {
 }
 
 const app = express();
+app.set('trust proxy', 1);
+
+const formLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false });
+const analyticsLimiter = rateLimit({ windowMs: 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || 'https://us-executivetravel.com,http://localhost:5173')
     .split(',')
@@ -50,8 +60,11 @@ app.use(cors({
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use((req, res, next) => {
+    const limit = req.path === '/api/apply' ? '10mb' : '64kb';
+    express.json({ limit })(req, res, next);
+});
+app.use(express.urlencoded({ limit: '64kb', extended: true }));
 
 // Request logger (disabled in production to reduce noise)
 if (process.env.NODE_ENV !== 'production') {
@@ -61,119 +74,77 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 
-// Auth Middleware
+// Resolve Clerk identity only after the session token has passed signature and issuer checks.
+async function getClerkEmail(claims) {
+    if (claims?.sub && process.env.CLERK_SECRET_KEY) {
+        try {
+            const response = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(claims.sub)}`, {
+                headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
+                signal: AbortSignal.timeout(5000),
+            });
+            if (response.ok) {
+                const user = await response.json();
+                if (user.id === claims.sub) {
+                    const primary = user.email_addresses?.find((item) => item.id === user.primary_email_address_id);
+                    return (primary?.email_address || '').toLowerCase();
+                }
+            }
+        } catch (error) {
+            console.warn('Clerk API lookup failed:', error.message);
+        }
+    }
+    return claims?.email_verified === true
+        ? String(claims.email || claims.primary_email || '').toLowerCase()
+        : null;
+}
+
 const authenticateAdmin = async (req, res, next) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    const token = authHeader.split(' ')[1];
-
-    // 1. Try internal admin JWT (legacy login)
+    if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const token = authHeader.slice(7);
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.admin = decoded;
-        return next();
+        const decoded = jwt.verify(token, JWT_SECRET, { ...JWT_OPTIONS, algorithms: ['HS256'] });
+        if (decoded.role === 'admin' && ADMIN_EMAILS.includes(String(decoded.email || '').toLowerCase())) {
+            req.admin = decoded;
+            return next();
+        }
     } catch {
-        // Not an internal JWT — fall through to Clerk
+        // Try a Clerk session token next.
     }
-
-    // 2. Try Clerk token path
     try {
-        const decoded = jwt.decode(token);
-        let email = null;
-
-        if (decoded?.email) {
-            email = decoded.email.toLowerCase();
-        } else if (decoded?.primary_email) {
-            email = decoded.primary_email.toLowerCase();
-        } else if (req.headers['x-user-email']) {
-            const clerkEmail = req.headers['x-user-email'].toString().trim().toLowerCase();
-            if (decoded?.sub && clerkEmail.includes('@')) {
-                email = clerkEmail;
-            }
-        }
-
-        if (!email && decoded?.sub && process.env.CLERK_SECRET_KEY) {
-            try {
-                const clerkRes = await fetch(`https://api.clerk.com/v1/users/${decoded.sub}`, {
-                    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` }
-                });
-                if (clerkRes.ok) {
-                    const clerkUser = await clerkRes.json();
-                    const primary = clerkUser.email_addresses?.find(e => e.id === clerkUser.primary_email_address_id);
-                    email = (primary?.email_address || '').toLowerCase();
-                }
-            } catch (e) {
-                console.warn('Clerk API lookup failed:', e.message);
-            }
-        }
-
+        const claims = await verifyClerkToken(token);
+        const email = await getClerkEmail(claims);
         if (email && ADMIN_EMAILS.includes(email)) {
             req.admin = { role: 'admin', email };
             return next();
         }
-    } catch (e) {
-        console.warn('Clerk token decode failed:', e.message);
+    } catch {
+        // Invalid or expired token.
     }
-
     return res.status(401).json({ success: false, message: 'Invalid token' });
 };
 
-
 const authenticateUser = async (req, res, next) => {
     const authHeader = req.headers.authorization;
-    const clientEmail = (req.query.email || req.headers['x-user-email'] || '').toString().trim().toLowerCase();
-
-    let userEmail = null;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.split(' ')[1];
-        try {
-            const adminDecoded = jwt.verify(token, JWT_SECRET);
-            if (adminDecoded && adminDecoded.email) {
-                req.user = { email: clientEmail || adminDecoded.email, isAdmin: true };
-                return next();
-            }
-        } catch {
-            // Not admin
-        }
-
-        try {
-            const decoded = jwt.decode(token);
-            if (decoded && decoded.sub) {
-                if (decoded.email || decoded.primary_email) {
-                    userEmail = (decoded.email || decoded.primary_email).toLowerCase();
-                } else if (process.env.CLERK_SECRET_KEY) {
-                    try {
-                        const clerkRes = await fetch(`https://api.clerk.com/v1/users/${decoded.sub}`, {
-                            headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` }
-                        });
-                        if (clerkRes.ok) {
-                            const clerkUser = await clerkRes.json();
-                            const primaryObj = clerkUser.email_addresses?.find(e => e.id === clerkUser.primary_email_address_id);
-                            userEmail = (primaryObj?.email_address || clerkUser.email_addresses?.[0]?.email_address || '').toLowerCase();
-                        }
-                    } catch (err) {
-                        console.warn('Clerk API fetch error:', err.message);
-                    }
-                }
-            }
-        } catch (err) {
-            console.warn('Token decode error:', err);
-        }
-    }
-
-    if (!userEmail && clientEmail && clientEmail.includes('@')) {
-        userEmail = clientEmail;
-    }
-
-    if (!userEmail) {
+    if (!authHeader?.startsWith('Bearer ')) {
         return res.status(401).json({ success: false, message: 'Authentication required to view your portal.' });
     }
-
+    const token = authHeader.slice(7);
+    let userEmail = null;
+    try {
+        const claims = jwt.verify(token, JWT_SECRET, { ...JWT_OPTIONS, algorithms: ['HS256'] });
+        if (['admin', 'user'].includes(claims.role)) userEmail = String(claims.email || '').toLowerCase();
+    } catch {
+        try {
+            const claims = await verifyClerkToken(token);
+            userEmail = await getClerkEmail(claims);
+        } catch {
+            // Invalid or expired token.
+        }
+    }
+    if (!userEmail) return res.status(401).json({ success: false, message: 'Authentication required to view your portal.' });
     req.user = { email: userEmail };
-    next();
+    return next();
 };
 
 // OAuth2Client initialized once at startup
@@ -228,7 +199,7 @@ const getReceiver = () => process.env.NODE_ENV === 'development'
     : (process.env.EMAIL_RECEIVER || 'hello@us-executivetravel.com');
 
 // Analytics tracking endpoint (called by frontend on load)
-app.post('/api/track-visit', async (req, res) => {
+app.post('/api/track-visit', analyticsLimiter, async (req, res) => {
     try {
         if (!supabase) return res.status(200).json({ success: true, note: "Supabase not connected" });
         
@@ -252,7 +223,7 @@ app.post('/api/track-visit', async (req, res) => {
     }
 });
 
-app.post('/api/book', async (req, res) => {
+app.post('/api/book', formLimiter, async (req, res) => {
     try {
         const {
             name, email, phone, isReturn, pickup, dropoff, date, time,
@@ -372,7 +343,7 @@ app.post('/api/book', async (req, res) => {
     }
 });
 
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', formLimiter, async (req, res) => {
     try {
         const { name, email, phone, message } = req.body;
         if (supabase) {
@@ -404,9 +375,25 @@ app.post('/api/contact', async (req, res) => {
     }
 });
 
-app.post('/api/apply', async (req, res) => {
+app.post('/api/apply', formLimiter, async (req, res) => {
     try {
         const { name, email, phone, license, vehicle, experience, document } = req.body;
+        let fileExt = 'pdf';
+        let documentBuffer = null;
+        if (document) {
+            const match = typeof document === 'string'
+                ? document.match(/^data:(image\/(?:jpeg|png|webp)|application\/pdf);base64,([A-Za-z0-9+/]+={0,2})$/)
+                : null;
+            if (!match) return res.status(400).json({ success: false, message: 'Invalid document.' });
+            const mimeType = match[1];
+            if (mimeType === 'image/jpeg') fileExt = 'jpg';
+            else if (mimeType === 'image/png') fileExt = 'png';
+            else if (mimeType === 'image/webp') fileExt = 'webp';
+            documentBuffer = Buffer.from(match[2], 'base64');
+            if (documentBuffer.length > 8 * 1024 * 1024) {
+                return res.status(413).json({ success: false, message: 'Document is too large.' });
+            }
+        }
         // 1. First, save to Supabase
         if (supabase) {
             const { error: dbError } = await supabase
@@ -419,16 +406,6 @@ app.post('/api/apply', async (req, res) => {
             }
         }
 
-        // Determine file extension from data URL
-        let fileExt = 'pdf';
-        if (document && document.startsWith('data:')) {
-            const mimeType = document.split(';')[0].split(':')[1];
-            if (mimeType.includes('image/jpeg')) fileExt = 'jpg';
-            else if (mimeType.includes('image/png')) fileExt = 'png';
-            else if (mimeType.includes('image/webp')) fileExt = 'webp';
-            else if (mimeType.includes('application/pdf')) fileExt = 'pdf';
-        }
-
         // 2. Prepare Email
         const mailOptions = {
             from: process.env.EMAIL_USER || 'hello@us-executivetravel.com',
@@ -438,7 +415,7 @@ app.post('/api/apply', async (req, res) => {
             attachments: document ? [
                 {
                     filename: `Driver_Document.${fileExt}`,
-                    path: document
+                    content: documentBuffer
                 }
             ] : []
         };
@@ -457,26 +434,18 @@ app.post('/api/apply', async (req, res) => {
     }
 });
 
-// User Signup
-app.post('/api/admin/signup', (req, res) => {
-    const { name, email, password } = req.body;
-    const role = (ADMIN_EMAILS.includes(email.toLowerCase())) ? 'admin' : 'user';
-    if (process.env.NODE_ENV !== 'production') {
-        console.log(`New Signup: ${name} (${email}) - Role: ${role}`);
-    }
-    const token = jwt.sign({ role, email, name }, JWT_SECRET, { expiresIn: '24h' });
-    res.status(200).json({ token, role, success: true });
-});
+// Registration is handled by Clerk; this legacy endpoint must never mint tokens.
+app.post('/api/admin/signup', (_req, res) => res.status(410).json({ success: false, message: 'Use the identity provider to sign up.' }));
 
 // Admin & User Auth
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', loginLimiter, (req, res) => {
     const { email, password } = req.body;
 
     if (ADMIN_EMAILS.includes(email.toLowerCase()) && password === ADMIN_PASSWORD) {
         if (process.env.NODE_ENV !== 'production') {
             console.log("Admin Login Success");
         }
-        const token = jwt.sign({ role: 'admin', email }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign({ role: 'admin', email }, JWT_SECRET, { expiresIn: '8h', ...JWT_OPTIONS });
         return res.status(200).json({ token, role: 'admin', success: true });
     } else {
         if (process.env.NODE_ENV !== 'production') {
@@ -578,7 +547,7 @@ app.delete('/api/admin/bookings/:id', authenticateAdmin, async (req, res) => {
 });
 
 // Google Login Verification
-app.post('/api/admin/google-login', async (req, res) => {
+app.post('/api/admin/google-login', loginLimiter, async (req, res) => {
     const { credential } = req.body;
 
     try {
@@ -589,7 +558,7 @@ app.post('/api/admin/google-login', async (req, res) => {
         const payload = ticket.getPayload();
         const email = payload['email'];
         const role = (ADMIN_EMAILS.includes(email.toLowerCase())) ? 'admin' : 'user';
-        const token = jwt.sign({ role, email }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign({ role, email }, JWT_SECRET, { expiresIn: '8h', ...JWT_OPTIONS });
         res.status(200).json({ success: true, token, role, user: { name: payload['name'], email, picture: payload['picture'] } });
     } catch (error) {
         console.error("Google verify error:", error.message);

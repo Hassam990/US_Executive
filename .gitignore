@@ -28,3 +28,4 @@ dist-ssr
 node_modules
 .vercel
 .env*
+*.db
