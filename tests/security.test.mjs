@@ -9,7 +9,7 @@ process.env.GOOGLE_CLIENT_ID = 'test-client-id.apps.googleusercontent.com';
 process.env.NODE_ENV = 'test';
 for (const key of [
     'VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY',
-    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'CLERK_PUBLISHABLE_KEY',
+    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'CLERK_PUBLISHABLE_KEY',
     'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'VITE_CLERK_PUBLISHABLE_KEY',
 ]) delete process.env[key];
 
@@ -50,6 +50,24 @@ test('forged JWT claims and email headers cannot authorize admin access', async 
         headers: { Authorization: `Bearer ${forgedToken}`, 'x-user-email': 'admin@example.test' },
     });
     assert.equal(response.status, 401);
+});
+
+test('driver application deletion requires an authenticated admin', async () => {
+    const response = await fetch(`${baseUrl}/api/admin/drivers/1`, { method: 'DELETE' });
+    assert.equal(response.status, 401);
+});
+
+test('driver application deletion rejects invalid IDs', async () => {
+    const adminToken = jwt.sign(
+        { role: 'admin', email: 'admin@example.test' },
+        process.env.JWT_SECRET,
+        { expiresIn: '5m', issuer: 'us-executive-api', audience: 'us-executive-users' },
+    );
+    const response = await fetch(`${baseUrl}/api/admin/drivers/not-an-id`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    assert.equal(response.status, 400);
 });
 
 test('driver uploads reject filesystem paths instead of attaching server files', async () => {

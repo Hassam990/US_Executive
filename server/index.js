@@ -228,13 +228,13 @@ if (process.env.NODE_ENV !== 'production') {
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 let supabase = null;
 if (supabaseUrl && supabaseKey) {
-    supabase = createClient(supabaseUrl, supabaseKey);
+    supabase = createClient(supabaseUrl, supabaseKey, { auth: { autoRefreshToken: false, persistSession: false } });
     console.log('Supabase connected.');
 } else {
-    console.warn('WARNING: Supabase env vars missing — DB features disabled.');
+    console.warn('WARNING: Supabase persistence is disabled. Set VITE_SUPABASE_URL and the server-only SUPABASE_SERVICE_ROLE_KEY.');
 }
 
 // ─── Google OAuth Client ─────────────────────────────────────────────────────
@@ -621,6 +621,25 @@ app.delete('/api/admin/bookings/:id', authenticateAdmin, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: 'Failed to delete booking.' });
+    }
+});
+
+app.delete('/api/admin/drivers/:id', authenticateAdmin, async (req, res) => {
+    if (req.admin.role !== 'admin') return res.status(403).json({ success: false, message: 'Forbidden.' });
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+        return res.status(400).json({ success: false, message: 'Invalid driver ID.' });
+    }
+    if (!supabase) {
+        return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    }
+    try {
+        const { error } = await supabase.from('drivers').delete().eq('id', id);
+        if (error) throw error;
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Failed to delete driver application:', error);
+        return res.status(500).json({ success: false, message: 'Failed to delete driver application.' });
     }
 });
 

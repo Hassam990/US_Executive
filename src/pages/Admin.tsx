@@ -16,7 +16,6 @@ import {
 
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
 
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -184,23 +183,10 @@ export function Admin() {
         }
     };
 
-    useEffect(() => {
-        if (!isAdmin) return;
-        fetchDashboard();
-
-        if (!supabase) return;
-
-        const channel = supabase
-            .channel('admin_dashboard')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => fetchDashboard())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => fetchDashboard())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, () => fetchDashboard())
-            .subscribe();
-
-        return () => {
-            if (supabase) supabase.removeChannel(channel);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        if (!isAdmin) return;
+        fetchDashboard();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAdmin, token, role]);
 
     const updateBookingStatus = async (id: number, newStatus: string) => {
@@ -261,40 +247,30 @@ export function Admin() {
 
     };
 
-    const deleteDriver = async (id: number) => {
-
-        if (!confirm("Are you sure you want to delete this application?")) return;
-
-        if (!supabase) {
-
-            alert("Database connection is not configured.");
-
-            return;
-
-        }
-
-        try {
-
-            const { error } = await supabase.from('drivers').delete().eq('id', id);
-
-            if (!error) {
-
-                fetchDashboard();
-
-                if (selectedDriver?.id === id) setSelectedDriver(null);
-
-            } else {
-
-                console.error("Failed to delete driver:", error);
-
-            }
-
-        } catch (err) {
-
-            console.error(err);
-
-        }
-
+    const deleteDriver = async (id: number) => {
+        if (!confirm("Are you sure you want to delete this application?")) return;
+
+        try {
+            const authToken = isClerkAdmin ? await getToken() : token;
+            const res = await fetch("/api/admin/drivers/" + id, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": "Bearer " + authToken,
+                    ...(isClerkAdmin && clerkEmail ? { "x-user-email": clerkEmail } : {})
+                }
+            });
+
+            if (res.ok) {
+                fetchDashboard();
+                if (selectedDriver?.id === id) setSelectedDriver(null);
+            } else {
+                const result = await res.json().catch(() => ({}));
+                alert(result.message || "Failed to delete driver application.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Unable to connect to the server.");
+        }
     };
 
     const filteredBookings = useMemo(() => {

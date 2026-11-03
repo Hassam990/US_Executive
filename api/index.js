@@ -150,16 +150,16 @@ const authenticateUser = async (req, res, next) => {
 // OAuth2Client initialized once at startup
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-// Supabase initialization — only use anon key, never service role
+// Supabase admin client. This key must remain server-only.
 const getSupabase = () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!url || !key) {
-        console.error("CRITICAL: Missing Supabase URL or Key. Check Vercel Env Vars.");
+        console.error("Supabase persistence is disabled. Set VITE_SUPABASE_URL and the server-only SUPABASE_SERVICE_ROLE_KEY.");
         return null;
     }
-    return createClient(url, key);
+    return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 };
 
 const supabase = getSupabase();
@@ -543,6 +543,24 @@ app.delete('/api/admin/bookings/:id', authenticateAdmin, async (req, res) => {
         res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false });
+    }
+});
+
+app.delete('/api/admin/drivers/:id', authenticateAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+        return res.status(400).json({ success: false, message: 'Invalid driver ID.' });
+    }
+    if (!supabase) {
+        return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    }
+    try {
+        const { error } = await supabase.from('drivers').delete().eq('id', id);
+        if (error) throw error;
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Failed to delete driver application:', error);
+        return res.status(500).json({ success: false, message: 'Failed to delete driver application.' });
     }
 });
 
