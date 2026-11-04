@@ -17,6 +17,7 @@ export function Footer() {
           <ul>
             <li><Link to="/services">Our services</Link></li>
             <li><Link to="/fleet">Our fleet</Link></li>
+            <li><Link to="/drivers">Our drivers</Link></li>
             <li><Link to="/book">Plan a journey</Link></li>
             <li><Link to="/apply">Drive with us</Link></li>
           </ul>

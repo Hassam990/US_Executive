@@ -8,15 +8,17 @@ const { createClient } = require('@supabase/supabase-js');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const { verifyClerkToken } = require('./clerkAuth.cjs');
+const chatSystem = require('./chatSystem.cjs');
+const { createChatToken, hashChatToken, isUuid, loadRecentChatSummaries, normalizeDriverProfile, validateVisitorIdentity, validateVisitorMessage } = chatSystem;
 const JWT_OPTIONS = { issuer: 'us-executive-api', audience: 'us-executive-users' };
 const validator = require('validator');
+const driverApplication = require('./driverApplication.cjs');
+const { APPLICATION_STATUSES, BUCKET, MAX_DOCUMENT_BYTES, getDocumentExtension, getDueExpiryReminders, secretsMatch, validateApplicationPayload, validateSessionId } = driverApplication;
 const {
     bookingAdminEmail,
     bookingConfirmationEmail,
     contactAdminEmail,
-    contactAutoReplyEmail,
-    driverAdminEmail,
-    driverConfirmationEmail
+    contactAutoReplyEmail
 } = require('./emailTemplates');
 
 // ─── Env validation ───────────────────────────────────────────────────────────
@@ -79,18 +81,14 @@ app.use(cors({
         callback(null, false);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Chat-Token'],
 }));
 
 // ─── Body Parsers ─────────────────────────────────────────────────────────────
-// FIX #4 & #10: Tight limits on all routes; only /api/apply gets 10mb for file
+// Keep request bodies small; driver documents upload directly to private object storage.
 app.use((req, res, next) => {
-    if (req.path === '/api/apply') {
-        express.json({ limit: '10mb' })(req, res, next);
-    } else {
-        express.json({ limit: '64kb' })(req, res, next);
-    }
+    express.json({ limit: '64kb' })(req, res, next);
 });
 app.use(express.urlencoded({ limit: '64kb', extended: true }));
 
@@ -123,6 +121,10 @@ const analyticsLimiter = rateLimit({
     legacyHeaders: false,
     message: { success: false, message: 'Rate limit exceeded.' },
 });
+
+const chatStartLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
+const chatReadLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
+const chatWriteLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
 async function getClerkEmail(claims) {
@@ -274,6 +276,96 @@ app.post('/api/track-visit', analyticsLimiter, async (req, res) => {
     }
 });
 
+app.get('/api/drivers', async (_req, res) => {
+    if (!supabase) return res.status(200).json({ success: true, drivers: [] });
+    try {
+        const { data, error } = await supabase.from('driver_profiles')
+            .select('id,display_name,headline,bio,base_location,photo_url,vehicle,services')
+            .eq('status', 'active').eq('is_public', true).order('display_name');
+        if (error) throw error;
+        return res.status(200).json({ success: true, drivers: data || [] });
+    } catch (error) {
+        console.error('Could not load public driver profiles:', error.message);
+        return res.status(503).json({ success: false, drivers: [], message: 'Driver profiles are temporarily unavailable.' });
+    }
+});
+
+app.post('/api/chat/conversations', chatStartLimiter, async (req, res) => {
+    const type = req.body?.type;
+    const driverProfileId = req.body?.driverProfileId;
+    if (!['support', 'driver'].includes(type)) return res.status(400).json({ success: false, message: 'Choose support or a driver chat.' });
+    if ((type === 'driver' && !isUuid(driverProfileId)) || (type === 'support' && driverProfileId)) {
+        return res.status(400).json({ success: false, message: 'The chat destination is invalid.' });
+    }
+    const identityResult = validateVisitorIdentity({ name: req.body?.name, email: req.body?.email });
+    if (identityResult.error) return res.status(400).json({ success: false, message: identityResult.error });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Chat is temporarily unavailable. Please call 07412 671467.' });
+    try {
+        if (type === 'driver') {
+            const { data: profile, error: profileError } = await supabase.from('driver_profiles')
+                .select('id').eq('id', driverProfileId).eq('status', 'active').eq('is_public', true).maybeSingle();
+            if (profileError) throw profileError;
+            if (!profile) return res.status(404).json({ success: false, message: 'That driver is no longer available for chat.' });
+        }
+        const chatToken = createChatToken();
+        const { data: conversation, error } = await supabase.from('chat_conversations').insert({
+            conversation_type: type,
+            driver_profile_id: type === 'driver' ? driverProfileId : null,
+            visitor_name: identityResult.identity.name,
+            visitor_email: identityResult.identity.email,
+            visitor_token_hash: hashChatToken(chatToken),
+        }).select('id,status,conversation_type,driver_profile_id,visitor_name,created_at').single();
+        if (error) throw error;
+        return res.status(201).json({ success: true, conversation, chatToken });
+    } catch (error) {
+        console.error('Could not create chat conversation:', error.message);
+        return res.status(503).json({ success: false, message: 'Chat is temporarily unavailable. Please call 07412 671467.' });
+    }
+});
+
+app.get('/api/chat/conversations/:id/messages', chatReadLimiter, async (req, res) => {
+    const tokenHash = hashChatToken(req.get('X-Chat-Token'));
+    if (!isUuid(req.params.id) || !tokenHash) return res.status(401).json({ success: false, message: 'This chat session is invalid.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Chat is temporarily unavailable.' });
+    try {
+        const { data: conversation, error: conversationError } = await supabase.from('chat_conversations')
+            .select('id,status').eq('id', req.params.id).eq('visitor_token_hash', tokenHash).maybeSingle();
+        if (conversationError) throw conversationError;
+        if (!conversation) return res.status(404).json({ success: false, message: 'Chat session not found.' });
+        const { data: messages, error } = await supabase.from('chat_messages')
+            .select('id,sender_role,body,created_at').eq('conversation_id', conversation.id)
+            .order('created_at', { ascending: true }).limit(250);
+        if (error) throw error;
+        return res.status(200).json({ success: true, conversation: { id: conversation.id, status: conversation.status }, messages: messages || [] });
+    } catch (error) {
+        console.error('Could not load chat messages:', error.message);
+        return res.status(503).json({ success: false, message: 'Chat messages could not be loaded.' });
+    }
+});
+
+app.post('/api/chat/conversations/:id/messages', chatWriteLimiter, async (req, res) => {
+    const tokenHash = hashChatToken(req.get('X-Chat-Token'));
+    const body = validateVisitorMessage(req.body?.body);
+    if (!isUuid(req.params.id) || !tokenHash) return res.status(401).json({ success: false, message: 'This chat session is invalid.' });
+    if (!body) return res.status(400).json({ success: false, message: 'Write a message up to 2,000 characters.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Chat is temporarily unavailable.' });
+    try {
+        const { data: conversation, error: conversationError } = await supabase.from('chat_conversations')
+            .select('id,status').eq('id', req.params.id).eq('visitor_token_hash', tokenHash).maybeSingle();
+        if (conversationError) throw conversationError;
+        if (!conversation) return res.status(404).json({ success: false, message: 'Chat session not found.' });
+        if (conversation.status !== 'open') return res.status(409).json({ success: false, message: 'This chat is closed.' });
+        const { error: insertError } = await supabase.from('chat_messages').insert({ conversation_id: conversation.id, sender_role: 'visitor', body });
+        if (insertError) throw insertError;
+        const { error: updateError } = await supabase.from('chat_conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversation.id);
+        if (updateError) throw updateError;
+        return res.status(201).json({ success: true });
+    } catch (error) {
+        console.error('Could not send chat message:', error.message);
+        return res.status(503).json({ success: false, message: 'Your message could not be sent.' });
+    }
+});
+
 // ─── Booking ─────────────────────────────────────────────────────────────────
 app.post('/api/book', formLimiter, async (req, res) => {
     try {
@@ -402,80 +494,169 @@ app.post('/api/contact', formLimiter, async (req, res) => {
     }
 });
 
-// ─── Driver Apply ─────────────────────────────────────────────────────────────
-app.post('/api/apply', formLimiter, async (req, res) => {
+// ─── Driver Application ───────────────────────────────────────────────────────
+app.post('/api/apply/upload-url', formLimiter, async (req, res) => {
+    const { sessionId, documentType, mimeType, size } = req.body || {};
+    const extension = getDocumentExtension(documentType, mimeType);
+    if (!validateSessionId(sessionId) || !extension || !Number.isSafeInteger(size) || size < 1 || size > MAX_DOCUMENT_BYTES) {
+        return res.status(400).json({ success: false, message: 'Choose a PDF, JPG or PNG document up to 8 MB.' });
+    }
+    if (!supabase) return res.status(503).json({ success: false, message: 'Secure document storage is not configured.' });
+
+    const path = `applications/${sessionId}/${documentType}.${extension}`;
     try {
-        const name       = sanitize(req.body.name);
-        const email      = sanitizeEmail(req.body.email);
-        const phone      = sanitizePhone(req.body.phone);
-        const license    = sanitize(req.body.license);
-        const vehicle    = sanitize(req.body.vehicle);
-        const experience = sanitize(req.body.experience);
-        const document   = req.body.document; // base64 — validated below
-
-        if (!name || !email || !phone || !license || !vehicle) {
-            return res.status(400).json({ success: false, message: 'Required fields missing.' });
-        }
-
-        // FIX: Validate document is a legitimate base64 data URL
-        let fileExt = 'pdf';
-        let safeDocument = null;
-        if (document && typeof document === 'string' && document.startsWith('data:')) {
-            const mimeType = document.split(';')[0].split(':')[1];
-            const allowed  = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-            if (!allowed.includes(mimeType)) {
-                return res.status(400).json({ success: false, message: 'Invalid document type.' });
-            }
-            if (mimeType.includes('jpeg')) fileExt = 'jpg';
-            else if (mimeType.includes('png'))  fileExt = 'png';
-            else if (mimeType.includes('webp')) fileExt = 'webp';
-            safeDocument = document;
-        }
-
-        if (supabase) {
-            const { error: dbError } = await supabase.from('drivers')
-                .insert([{ name, email, phone, license, vehicle, experience, document: safeDocument }]);
-            if (dbError) console.warn('Supabase Warning:', dbError.message);
-        }
-
-        const receiver  = process.env.EMAIL_RECEIVER || 'hello@us-executivetravel.com';
-        const sender    = process.env.EMAIL_USER     || 'hello@us-executivetravel.com';
-        const emailData = { name, email, phone, license, vehicle, experience };
-        let mailError   = null;
-
-        try {
-            await transporter.sendMail({
-                from: `"US Executive Travel" <${sender}>`, to: receiver, replyTo: email,
-                subject: `📋 NEW DRIVER APPLICATION: ${name}`,
-                html: driverAdminEmail(emailData),
-                attachments: safeDocument ? [{
-                    filename: `Driver_Document_${name.replace(/[^a-z0-9]/gi, '_')}.${fileExt}`,
-                    path: safeDocument,
-                }] : [],
-            });
-            console.log(`Driver application → ${receiver}`);
-        } catch (err) {
-            console.error('Driver application mail FAILED:', err.code, err.response || err.message);
-            mailError = err;
-        }
-
-        if (email) {
-            try {
-                await transporter.sendMail({
-                    from: `"US Executive Travel" <${sender}>`, to: email,
-                    subject: `Application Received — US Executive Travel`,
-                    html: driverConfirmationEmail(emailData),
-                });
-                console.log(`Driver confirmation → ${email}`);
-            } catch (err) {
-                console.error('Driver confirmation mail FAILED:', err.code, err.response || err.message);
-            }
-        }
-
-        res.status(200).json({ success: true, message: 'Application received successfully.', emailSent: !mailError });
+        const { data, error } = await supabase.storage.from(BUCKET).createSignedUploadUrl(path);
+        if (error || !data?.token) throw error || new Error('Upload URL could not be created.');
+        return res.status(200).json({ success: true, path: data.path, token: data.token });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Failed to submit application.' });
+        console.error('Could not create a driver document upload URL:', error.message);
+        return res.status(503).json({ success: false, message: 'Secure document storage is unavailable. Please try again later.' });
+    }
+});
+
+app.post('/api/apply', formLimiter, async (req, res) => {
+    const validation = validateApplicationPayload(req.body);
+    if (validation.error) return res.status(400).json({ success: false, message: validation.error });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Applications are temporarily unavailable. Please contact our team.' });
+
+    const { application, uploadSessionId } = validation;
+    const documentEntries = Object.entries(application.documents);
+    try {
+        if (documentEntries.length) {
+            const folder = `applications/${uploadSessionId}`;
+            const { data: objects, error: listError } = await supabase.storage.from(BUCKET).list(folder, { limit: 20 });
+            if (listError) throw listError;
+            const uploadedNames = new Set((objects || []).map((object) => object.name));
+            const missingUpload = documentEntries.some(([key, document]) => !uploadedNames.has(`${key}.${getDocumentExtension(key, document.mimeType)}`));
+            if (missingUpload) return res.status(400).json({ success: false, message: 'One or more documents have not finished uploading. Please retry.' });
+        }
+
+        const { personal } = application;
+        const vehicleLabel = [application.vehicle.make, application.vehicle.model, application.vehicle.year].filter(Boolean).join(' ') || 'Vehicle not yet selected';
+        const initialStatus = personal.licensedByRbbc === 'Yes' ? 'Application Received' : 'Pending Licensing Approval';
+        const { data: inserted, error: insertError } = await supabase.from('drivers').insert([{
+            name: personal.fullName,
+            email: personal.email,
+            phone: personal.phone,
+            license: personal.driverLicenceNumber || '',
+            vehicle: vehicleLabel,
+            experience: application.experience,
+            document: null,
+            application_data: application,
+            application_status: initialStatus,
+            availability_status: 'unavailable',
+        }]).select('id').single();
+        if (insertError || !inserted) throw insertError || new Error('Application record could not be created.');
+
+        const from = process.env.EMAIL_USER || 'hello@us-executivetravel.com';
+        const applicationId = inserted.id;
+        const mailResults = await Promise.allSettled([
+            transporter.sendMail({
+                from: `US Executive Travel <${from}>`, to: process.env.EMAIL_RECEIVER || 'hello@us-executivetravel.com', replyTo: personal.email,
+                subject: `New driver application #${applicationId}`,
+                text: [
+                    'A new driver application has been received.',
+                    `Applicant: ${personal.fullName}`, `Email: ${personal.email}`, `Phone: ${personal.phone}`,
+                    `Application status: ${initialStatus}`, '',
+                    'Uploaded documents are stored privately and are not attached to this email.',
+                    'Sign in to review the application: https://us-executivetravel.com/admin',
+                ].join('\n'),
+            }),
+            transporter.sendMail({
+                from: `US Executive Travel <${from}>`, to: personal.email,
+                subject: 'We received your driver application',
+                text: [
+                    `Hello ${personal.fullName},`, '',
+                    `We have received your application (reference #${applicationId}).`,
+                    `Current status: ${initialStatus}.`,
+                    'Our management team will review your information and contact you about next steps.',
+                    'Registering interest does not guarantee work or approval as a driver.', '', 'US Executive Travels',
+                ].join('\n'),
+            }),
+        ]);
+        const emailSent = mailResults.every((result) => result.status === 'fulfilled');
+        if (!emailSent) console.error('One or more driver application acknowledgement emails failed.');
+        return res.status(200).json({ success: true, applicationId, applicationStatus: initialStatus, emailSent });
+    } catch (error) {
+        console.error('Driver application processing failed:', error.message);
+        return res.status(500).json({ success: false, message: 'The application could not be saved. Please try again or contact our team.' });
+    }
+});
+
+app.get('/api/cron/driver-expiry-reminders', async (req, res) => {
+    const expected = process.env.CRON_SECRET;
+    const provided = typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7)
+        : '';
+    if (!expected) return res.status(503).json({ success: false, message: 'Reminder schedule is not configured.' });
+    if (!secretsMatch(expected, provided)) return res.status(401).json({ success: false, message: 'Unauthorized.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+
+    try {
+        const today = new Date().toISOString().slice(0, 10);
+        const groups = new Map();
+        for (let offset = 0; ; offset += 500) {
+            const { data: drivers, error } = await supabase.from('drivers')
+                .select('id,name,email,application_status,application_data')
+                .range(offset, offset + 499);
+            if (error) throw error;
+            for (const driver of drivers || []) {
+                if (!driver.email || ['Rejected', 'Inactive'].includes(driver.application_status)) continue;
+                for (const reminder of getDueExpiryReminders(driver, today)) {
+                    const key = `${driver.id}:${reminder.daysBefore}`;
+                    const group = groups.get(key) || { driver, daysBefore: reminder.daysBefore, reminders: [] };
+                    group.reminders.push(reminder);
+                    groups.set(key, group);
+                }
+            }
+            if (!drivers || drivers.length < 500) break;
+        }
+
+        let sent = 0;
+        for (const group of groups.values()) {
+            const pending = [];
+            for (const reminder of group.reminders) {
+                const { data: existing, error } = await supabase.from('driver_expiry_reminders')
+                    .select('driver_id')
+                    .eq('driver_id', String(group.driver.id))
+                    .eq('document_key', reminder.key)
+                    .eq('expiry_date', reminder.expiryDate)
+                    .eq('days_before', reminder.daysBefore)
+                    .maybeSingle();
+                if (error) throw error;
+                if (!existing) pending.push(reminder);
+            }
+            if (!pending.length) continue;
+
+            const list = pending.map((reminder) => `- ${reminder.label}: ${reminder.expiryDate} (${reminder.daysBefore} days away)`).join('\n');
+            const from = `US Executive Travel <${process.env.EMAIL_USER || 'hello@us-executivetravel.com'}>`;
+            const results = await Promise.allSettled([
+                transporter.sendMail({
+                    from, to: group.driver.email,
+                    subject: `Driver document expiry reminder — ${group.daysBefore} days`,
+                    text: `Hello ${group.driver.name},\n\nThe following driver or vehicle document(s) are due to expire in ${group.daysBefore} days:\n\n${list}\n\nPlease contact management to provide updated documents through the secure application process. Do not email medical reports or Enhanced DBS certificates.\n\nUS Executive Travels`,
+                }),
+                transporter.sendMail({
+                    from, to: process.env.EMAIL_RECEIVER || 'hello@us-executivetravel.com',
+                    subject: `Driver document expiry — ${group.driver.name} (${group.daysBefore} days)`,
+                    text: [`Driver: ${group.driver.name} (#${group.driver.id})`, `Email: ${group.driver.email}`, '', list, '', 'Review the record in the authorised admin area: https://us-executivetravel.com/admin'].join('\n'),
+                }),
+            ]);
+            if (results.some((result) => result.status !== 'fulfilled')) continue;
+            const { error: recordError } = await supabase.from('driver_expiry_reminders').upsert(
+                pending.map((reminder) => ({
+                    driver_id: String(group.driver.id), document_key: reminder.key,
+                    expiry_date: reminder.expiryDate, days_before: reminder.daysBefore,
+                })),
+                { onConflict: 'driver_id,document_key,expiry_date,days_before', ignoreDuplicates: true },
+            );
+            if (recordError) throw recordError;
+            sent += pending.length;
+        }
+        return res.status(200).json({ success: true, remindersSent: sent });
+    } catch (error) {
+        console.error('Driver expiry reminder run failed:', error.message);
+        return res.status(500).json({ success: false, message: 'Reminder run failed.' });
     }
 });
 
@@ -530,6 +711,118 @@ app.post('/api/admin/google-login', loginLimiter, async (req, res) => {
 // ADMIN PROTECTED ROUTES
 // ═══════════════════════════════════════════════════════════════════════════════
 
+app.get('/api/admin/driver-profiles', authenticateAdmin, async (_req, res) => {
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const { data, error } = await supabase.from('driver_profiles').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        return res.status(200).json({ success: true, profiles: data || [] });
+    } catch (error) {
+        console.error('Could not load driver profiles:', error.message);
+        return res.status(500).json({ success: false, message: 'Driver profiles could not be loaded.' });
+    }
+});
+
+app.post('/api/admin/driver-profiles', authenticateAdmin, async (req, res) => {
+    const validation = normalizeDriverProfile(req.body);
+    if (validation.error) return res.status(400).json({ success: false, message: validation.error });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const { data, error } = await supabase.from('driver_profiles').insert(validation.profile).select('*').single();
+        if (error) throw error;
+        return res.status(201).json({ success: true, profile: data });
+    } catch (error) {
+        console.error('Could not create driver profile:', error.message);
+        return res.status(500).json({ success: false, message: 'Driver profile could not be created.' });
+    }
+});
+
+app.patch('/api/admin/driver-profiles/:id', authenticateAdmin, async (req, res) => {
+    if (!isUuid(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid driver profile ID.' });
+    const validation = normalizeDriverProfile(req.body);
+    if (validation.error) return res.status(400).json({ success: false, message: validation.error });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const { data, error } = await supabase.from('driver_profiles').update({ ...validation.profile, updated_at: new Date().toISOString() })
+            .eq('id', req.params.id).select('*').single();
+        if (error) throw error;
+        return res.status(200).json({ success: true, profile: data });
+    } catch (error) {
+        console.error('Could not update driver profile:', error.message);
+        return res.status(500).json({ success: false, message: 'Driver profile could not be updated.' });
+    }
+});
+
+app.get('/api/admin/chats', authenticateAdmin, async (req, res) => {
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const requestedOffset = Number(req.query.offset || 0);
+        const offset = Number.isSafeInteger(requestedOffset) && requestedOffset >= 0 ? Math.min(requestedOffset, 100000) : 0;
+        const conversations = await loadRecentChatSummaries(supabase, 100, offset);
+        return res.status(200).json({ success: true, conversations, nextOffset: offset + conversations.length, hasMore: conversations.length === 100 });
+    } catch (error) {
+        console.error('Could not load chat inbox:', error.message);
+        return res.status(500).json({ success: false, message: 'Chat inbox could not be loaded.' });
+    }
+});
+
+app.get('/api/admin/chats/:id/messages', authenticateAdmin, async (req, res) => {
+    if (!isUuid(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid conversation ID.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const { data: conversation, error: conversationError } = await supabase.from('chat_conversations')
+            .select('id,conversation_type,driver_profile_id,visitor_name,visitor_email,status,created_at,last_message_at')
+            .eq('id', req.params.id).maybeSingle();
+        if (conversationError) throw conversationError;
+        if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found.' });
+        const { data: messages, error } = await supabase.from('chat_messages')
+            .select('id,sender_role,body,created_at').eq('conversation_id', conversation.id)
+            .order('created_at', { ascending: true }).limit(500);
+        if (error) throw error;
+        return res.status(200).json({ success: true, conversation, messages: messages || [] });
+    } catch (error) {
+        console.error('Could not load conversation:', error.message);
+        return res.status(500).json({ success: false, message: 'Conversation could not be loaded.' });
+    }
+});
+
+app.post('/api/admin/chats/:id/messages', authenticateAdmin, async (req, res) => {
+    if (!isUuid(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid conversation ID.' });
+    const body = validateVisitorMessage(req.body?.body);
+    if (!body) return res.status(400).json({ success: false, message: 'Write a message up to 2,000 characters.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const { data: conversation, error: conversationError } = await supabase.from('chat_conversations')
+            .select('id,status').eq('id', req.params.id).maybeSingle();
+        if (conversationError) throw conversationError;
+        if (!conversation) return res.status(404).json({ success: false, message: 'Conversation not found.' });
+        if (conversation.status !== 'open') return res.status(409).json({ success: false, message: 'Reopen this conversation before replying.' });
+        const { error: insertError } = await supabase.from('chat_messages').insert({ conversation_id: conversation.id, sender_role: 'admin', body });
+        if (insertError) throw insertError;
+        const { error: updateError } = await supabase.from('chat_conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversation.id);
+        if (updateError) throw updateError;
+        return res.status(201).json({ success: true });
+    } catch (error) {
+        console.error('Could not reply to chat conversation:', error.message);
+        return res.status(500).json({ success: false, message: 'Your reply could not be sent.' });
+    }
+});
+
+app.patch('/api/admin/chats/:id/status', authenticateAdmin, async (req, res) => {
+    if (!isUuid(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid conversation ID.' });
+    const status = req.body?.status;
+    if (!['open', 'closed'].includes(status)) return res.status(400).json({ success: false, message: 'Choose open or closed.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const { error } = await supabase.from('chat_conversations').update({ status }).eq('id', req.params.id);
+        if (error) throw error;
+        return res.status(200).json({ success: true, status });
+    } catch (error) {
+        console.error('Could not update conversation status:', error.message);
+        return res.status(500).json({ success: false, message: 'Conversation status could not be updated.' });
+    }
+});
+
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
     if (req.admin.role !== 'admin' || !ADMIN_EMAILS.includes((req.admin.email || '').toLowerCase())) {
@@ -538,8 +831,8 @@ app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
     try {
         if (!supabase) {
             return res.status(200).json({
-                bookings: [], messages: [], drivers: [],
-                stats: { total_bookings: 0, pending_bookings: 0, total_messages: 0, total_drivers: 0, page_views: 0, active_sessions: 1 },
+                bookings: [], messages: [], drivers: [], chats: [],
+                stats: { total_bookings: 0, pending_bookings: 0, total_messages: 0, total_drivers: 0, total_chats: 0, page_views: 0, active_sessions: 1 },
                 success: true, dbConnected: false,
             });
         }
@@ -554,16 +847,20 @@ app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
 
         if (bError || mError || dError || aError) throw (bError || mError || dError || aError);
 
+        const chats = await loadRecentChatSummaries(supabase, 5);
+        const { count: totalChats } = await supabase.from('chat_conversations').select('id', { count: 'exact', head: true });
+
         const stats = {
             total_bookings:   bookings?.length  || 0,
             pending_bookings: bookings?.filter(b => b.status === 'Pending').length || 0,
             total_messages:   messages?.length  || 0,
             total_drivers:    drivers?.length   || 0,
+            total_chats:      totalChats || 0,
             page_views:       analytics?.find(a => a.metric === 'page_views')?.value || 0,
             active_sessions:  Math.floor(Math.random() * 5) + 1,
         };
 
-        res.status(200).json({ bookings: bookings || [], messages: messages || [], drivers: drivers || [], stats, success: true, dbConnected: true });
+        res.status(200).json({ bookings: bookings || [], messages: messages || [], drivers: drivers || [], chats, stats, success: true, dbConnected: true });
     } catch (error) {
         console.error('Dashboard error:', error);
         // FIX #14: Never leak internal error messages to client
@@ -634,12 +931,119 @@ app.delete('/api/admin/drivers/:id', authenticateAdmin, async (req, res) => {
         return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
     }
     try {
+        const { data: driver, error: readError } = await supabase.from('drivers').select('application_data').eq('id', id).single();
+        if (readError) throw readError;
+        const paths = Object.values(driver?.application_data?.documents || {}).map((document) => document?.path).filter((path) => typeof path === 'string');
+        if (paths.length) {
+            const { error: storageError } = await supabase.storage.from(BUCKET).remove(paths);
+            if (storageError) throw storageError;
+        }
         const { error } = await supabase.from('drivers').delete().eq('id', id);
         if (error) throw error;
         return res.status(200).json({ success: true });
     } catch (error) {
         console.error('Failed to delete driver application:', error);
         return res.status(500).json({ success: false, message: 'Failed to delete driver application.' });
+    }
+});
+
+app.get('/api/admin/drivers/:id/documents', authenticateAdmin, async (req, res) => {
+    if (req.admin.role !== 'admin') return res.status(403).json({ success: false, message: 'Forbidden.' });
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid driver ID.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const { data: driver, error: driverError } = await supabase.from('drivers').select('application_data').eq('id', id).single();
+        if (driverError) throw driverError;
+        const docs = driver?.application_data?.documents || {};
+        const paths = Object.values(docs).map((document) => document?.path).filter((path) => typeof path === 'string');
+        if (!paths.length) return res.status(200).json({ success: true, documents: {} });
+        const { data: signed, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, 300);
+        if (error) throw error;
+        const signedByPath = new Map((signed || []).map((item) => [item.path, item.signedUrl]));
+        const documents = Object.fromEntries(Object.entries(docs).map(([key, document]) => [key, { ...document, signedUrl: signedByPath.get(document.path) || null }]));
+        return res.status(200).json({ success: true, documents, expiresIn: 300 });
+    } catch (error) {
+        console.error('Could not sign driver documents:', error.message);
+        return res.status(500).json({ success: false, message: 'Unable to load private documents.' });
+    }
+});
+
+app.patch('/api/admin/drivers/:id/status', authenticateAdmin, async (req, res) => {
+    if (req.admin.role !== 'admin') return res.status(403).json({ success: false, message: 'Forbidden.' });
+    const id = Number(req.params.id);
+    const status = req.body?.status;
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid driver ID.' });
+    if (!APPLICATION_STATUSES.includes(status)) return res.status(400).json({ success: false, message: 'Invalid application status.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    const { error } = await supabase.from('drivers').update({ application_status: status, status_updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) {
+        console.error('Could not update driver application status:', error.message);
+        return res.status(500).json({ success: false, message: 'Could not update application status.' });
+    }
+    return res.status(200).json({ success: true, status });
+});
+
+app.patch('/api/admin/drivers/:id/availability', authenticateAdmin, async (req, res) => {
+    if (req.admin.role !== 'admin') return res.status(403).json({ success: false, message: 'Forbidden.' });
+    const id = Number(req.params.id);
+    const available = req.body?.available;
+    const target = req.body?.target || 'driver';
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid driver ID.' });
+    if (typeof available !== 'boolean') return res.status(400).json({ success: false, message: 'Availability must be true or false.' });
+    if (!['driver', 'vehicle'].includes(target)) return res.status(400).json({ success: false, message: 'Invalid availability target.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const historyColumn = target === 'vehicle' ? 'vehicle_availability_history' : 'availability_history';
+        const statusColumn = target === 'vehicle' ? 'vehicle_availability_status' : 'availability_status';
+        const updatedColumn = target === 'vehicle' ? 'vehicle_availability_updated_at' : 'availability_updated_at';
+        const { data: driver, error: readError } = await supabase.from('drivers').select(historyColumn).eq('id', id).single();
+        if (readError) throw readError;
+        const previousHistory = driver[historyColumn] || [];
+        const timestamp = new Date().toISOString();
+        const history = [...previousHistory, { available, changedAt: timestamp }].slice(-50);
+        const { error } = await supabase.from('drivers').update({
+            [statusColumn]: available ? 'available' : 'unavailable',
+            [updatedColumn]: timestamp,
+            [historyColumn]: history,
+        }).eq('id', id);
+        if (error) throw error;
+        return res.status(200).json({ success: true, target, available, changedAt: timestamp });
+    } catch (error) {
+        console.error('Could not update driver availability:', error.message);
+        return res.status(500).json({ success: false, message: 'Could not update driver availability.' });
+    }
+});
+
+app.post('/api/admin/drivers/:id/request-documents', authenticateAdmin, async (req, res) => {
+    if (req.admin.role !== 'admin') return res.status(403).json({ success: false, message: 'Forbidden.' });
+    const id = Number(req.params.id);
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 1200) : '';
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ success: false, message: 'Invalid driver ID.' });
+    if (message.length < 4) return res.status(400).json({ success: false, message: 'Add a short note describing the missing information.' });
+    if (!supabase) return res.status(503).json({ success: false, message: 'Database connection is not configured.' });
+    try {
+        const { data: driver, error: readError } = await supabase.from('drivers').select('name,email,application_data').eq('id', id).single();
+        if (readError) throw readError;
+        const applicationData = driver.application_data || {};
+        const previousRequests = applicationData.management?.documentRequests || [];
+        const requestedAt = new Date().toISOString();
+        const { error: updateError } = await supabase.from('drivers').update({
+            application_status: 'Documents Pending',
+            status_updated_at: requestedAt,
+            application_data: { ...applicationData, management: { ...applicationData.management, documentRequests: [...previousRequests, { message, requestedAt }].slice(-50) } },
+        }).eq('id', id);
+        if (updateError) throw updateError;
+        await transporter.sendMail({
+            from: `US Executive Travel <${process.env.EMAIL_USER || 'hello@us-executivetravel.com'}>`,
+            to: driver.email,
+            subject: 'More information needed for your driver application',
+            text: `Hello ${driver.name},\n\nOur management team needs a little more information before we can continue reviewing your driver application:\n\n${message}\n\nPlease reply to this email or contact hello@us-executivetravel.com. Do not email medical reports or Enhanced DBS certificates.\n\nUS Executive Travels`,
+        });
+        return res.status(200).json({ success: true, status: 'Documents Pending' });
+    } catch (error) {
+        console.error('Could not request driver documents:', error.message);
+        return res.status(500).json({ success: false, message: 'Could not send the document request.' });
     }
 });
 

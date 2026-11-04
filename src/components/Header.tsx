@@ -23,6 +23,16 @@ const navItems = [
         ]
     },
     {
+        label: "Our Drivers",
+        bgColor: "#16000b",
+        textColor: "#fff",
+        links: [
+            { label: "Meet our drivers", href: "/drivers", ariaLabel: "Meet our drivers" },
+            { label: "Drive with us", href: "/apply", ariaLabel: "Apply to drive with us" },
+            { label: "Chat with support", href: "/contact", ariaLabel: "Chat with support" },
+        ]
+    },
+    {
         label: "Company",
         bgColor: "#1a000a",
         textColor: "#fff",

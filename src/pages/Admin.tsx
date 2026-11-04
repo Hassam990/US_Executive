@@ -2,9 +2,12 @@
 
 // @ts-nocheck
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 
 import { Button } from "../components/ui/button";
+import { DriverApplicationReview } from "@/components/admin/DriverApplicationReview";
+import { DriverProfileManager } from "@/components/admin/DriverProfileManager";
+import { ChatInbox } from "@/components/admin/ChatInbox";
 
 import { 
 
@@ -27,7 +30,7 @@ import { useUser, useAuth, useClerk } from "@clerk/react";
 
 const ADMIN_EMAILS = ['hassamazam999@gmail.com', 'hello@us-executivetravel.com'];
 
-type TabType = 'overview' | 'bookings' | 'messages' | 'drivers';
+type TabType = 'overview' | 'bookings' | 'messages' | 'drivers' | 'profiles' | 'chats';
 
 interface DashboardStats {
 
@@ -37,7 +40,9 @@ interface DashboardStats {
 
     total_messages: number;
 
-    total_drivers: number;
+    total_drivers: number;
+
+    total_chats: number;
 
     page_views: number;
 
@@ -51,7 +56,9 @@ interface DashboardData {
 
     messages: Record<string, unknown>[];
 
-    drivers: Record<string, unknown>[];
+    drivers: Record<string, unknown>[];
+
+    chats: Record<string, unknown>[];
 
     stats: DashboardStats;
 
@@ -119,7 +126,16 @@ export function Admin() {
 
     // Either path grants access
 
-    const isAdmin = isClerkAdmin || isLegacyAdmin;
+    const isAdmin = isClerkAdmin || isLegacyAdmin;
+
+    const getAdminHeaders = useCallback(async (json = false) => {
+        const authToken = isClerkAdmin ? await getToken() : token;
+        return {
+            ...(json ? { "Content-Type": "application/json" } : {}),
+            Authorization: `Bearer ${authToken}`,
+            ...(isClerkAdmin && clerkEmail ? { "x-user-email": clerkEmail } : {}),
+        };
+    }, [isClerkAdmin, getToken, token, clerkEmail]);
 
     const [activeTab, setActiveTab] = useState<TabType>('overview');
 
@@ -184,10 +200,12 @@ export function Admin() {
     };
 
     useEffect(() => {
-        if (!isAdmin) return;
+        if (!isAdmin || activeTab !== 'overview') return;
         fetchDashboard();
+        const refreshTimer = window.setInterval(fetchDashboard, 15000);
+        return () => window.clearInterval(refreshTimer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAdmin, token, role]);
+    }, [isAdmin, token, role, activeTab]);
 
     const updateBookingStatus = async (id: number, newStatus: string) => {
 
@@ -483,7 +501,9 @@ export function Admin() {
 
                         { id: 'messages', icon: MessageSquare, label: 'Messages', count: data.stats.total_messages },
 
-                        { id: 'drivers', icon: Briefcase, label: 'Applications', count: data.stats.total_drivers },
+                        { id: 'drivers', icon: Briefcase, label: 'Applications', count: data.stats.total_drivers },
+                        { id: 'profiles', icon: User, label: 'Driver Profiles' },
+                        { id: 'chats', icon: MessageSquare, label: 'Chat Inbox', count: data.stats.total_chats },
 
                     ].map((item) => (
 
@@ -630,7 +650,7 @@ export function Admin() {
 
                                 {/* Stats Grid */}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
 
                                     {[
 
@@ -640,7 +660,8 @@ export function Admin() {
 
                                         { label: 'Bookings', value: data.stats.total_bookings, icon: FileText, color: 'green' },
 
-                                        { label: 'Pending', value: data.stats.pending_bookings, icon: Clock, color: 'orange' },
+                                        { label: 'Pending', value: data.stats.pending_bookings, icon: Clock, color: 'orange' },
+                                        { label: 'Chats', value: data.stats.total_chats, icon: MessageSquare, color: 'pink' },
 
                                     ].map((stat, i) => (
 
@@ -1110,7 +1131,8 @@ export function Admin() {
 
                                                 <h4 className="text-2xl font-black tracking-tight">{d.name}</h4>
 
-                                                <p className="text-pink-500 text-[10px] font-black uppercase tracking-widest">Professional PHV Driver</p>
+                                                <p className="text-pink-500 text-[10px] font-black uppercase tracking-widest">Professional PHV Driver</p>
+                                                <span className="inline-flex mt-2 rounded-full border border-pink-500/20 bg-pink-500/10 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-pink-300">{d.application_status || "Application Received"}</span>
 
                                             </div>
 
@@ -1234,17 +1256,59 @@ export function Admin() {
 
                         )}
 
-                    </AnimatePresence>
+                        {activeTab === 'profiles' && (
+                            <motion.div key="profiles" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                                <DriverProfileManager getHeaders={getAdminHeaders} />
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'chats' && (
+                            <motion.div key="chats" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                                <ChatInbox getHeaders={getAdminHeaders} />
+                            </motion.div>
+                        )}
+
+                    </AnimatePresence>
+
+                    {activeTab === 'overview' && (
+                        <section className="mb-8 rounded-[2rem] border border-white/5 bg-white/5 p-6 md:p-8">
+                            <div className="mb-6 flex items-center justify-between gap-4">
+                                <div><p className="text-[10px] font-black uppercase tracking-[0.2em] text-pink-400">Recent Activity</p><h2 className="mt-1 text-xl font-black uppercase tracking-tight">Website chats</h2></div>
+                                <Button onClick={() => setActiveTab('chats')} variant="link" className="h-auto p-0 text-xs font-black uppercase tracking-widest text-pink-500">Open inbox</Button>
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                {(data.chats || []).slice(0, 5).map((chat: Record<string, any>) => (
+                                    <button type="button" key={chat.id} onClick={() => setActiveTab('chats')} className="flex min-w-0 items-center gap-3 rounded-2xl border border-white/5 bg-black/40 p-4 text-left transition hover:border-pink-500/30">
+                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pink-500/15"><MessageSquare className="h-5 w-5 text-pink-400" /></span>
+                                        <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{chat.conversation_type === 'driver' ? `${chat.driver_name || 'Driver'} · ${chat.visitor_name}` : `Support · ${chat.visitor_name}`}</span><span className="block truncate text-[10px] text-white/45">{chat.latest_message?.body || 'Conversation started'}</span></span>
+                                        <span className={`shrink-0 text-[9px] font-black uppercase tracking-widest ${chat.status === 'open' ? 'text-green-400' : 'text-white/30'}`}>{chat.status}</span>
+                                    </button>
+                                ))}
+                                {!(data.chats || []).length && <p className="py-5 text-sm text-white/40">New website chats will appear here.</p>}
+                            </div>
+                        </section>
+                    )}
 
                 </div>
 
             </main>
 
-            {/* Driver Application Modal */}
+            {selectedDriver?.application_data && Object.keys(selectedDriver.application_data).length > 0 && (
+                <DriverApplicationReview
+                    driver={selectedDriver}
+                    onClose={() => setSelectedDriver(null)}
+                    onRefresh={fetchDashboard}
+                    accessToken={getToken}
+                    isClerkAdmin={isClerkAdmin}
+                    clerkEmail={clerkEmail}
+                />
+            )}
+
+            {/* Driver Application Modal */}
 
             <AnimatePresence>
 
-                {selectedDriver && (
+                {selectedDriver && !selectedDriver.application_data && (
 
                     <motion.div 
 

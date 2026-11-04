@@ -101,6 +101,7 @@ const CardNav: React.FC<CardNavProps> = ({ logo, logoAlt = "Logo", items, classN
           <div className="desktop-nav" aria-label="Pages">
             <Link to="/services">Services</Link>
             <Link to="/fleet">Our fleet</Link>
+            <Link to="/drivers">Our drivers</Link>
             <Link to="/contact">Contact</Link>
           </div>
 
