@@ -148,6 +148,8 @@ export function Admin() {
     // Dashboard Data
 
     const [data, setData] = useState<DashboardData | null>(null);
+    const [dashboardLoading, setDashboardLoading] = useState(true);
+    const [dashboardError, setDashboardError] = useState("");
 
     // Auth guard: wait for Clerk to load
 
@@ -171,42 +173,66 @@ export function Admin() {
 
     }, [isLoaded, isAdmin, isSignedIn, navigate]);
 
-    const fetchDashboard = async () => {
-        try {
-            // Prefer Clerk token if signed in as admin, fallback to legacy JWT
-            const authToken = isClerkAdmin ? await getToken() : token;
-            const headers: Record<string, string> = {
-                "Authorization": `Bearer ${authToken}`
-            };
-            if (isClerkAdmin) headers["x-user-email"] = clerkEmail;
-            const res = await fetch("/api/admin/dashboard", { headers });
-            if (res.ok) {
-                const result = await res.json();
-                setData(result);
-            } else if (res.status === 401 || res.status === 403) {
-                if (!isClerkAdmin) {
-                    setToken(null);
-                    setRole(null);
-                    localStorage.removeItem('adminToken');
-                    localStorage.removeItem('userRole');
-                    localStorage.removeItem('userData');
-                    window.dispatchEvent(new Event('auth-change'));
-                    navigate("/login");
-                }
-            }
-        } catch (err) {
-            console.error("Dashboard error", err);
-        }
-    };
-
+    const fetchDashboard = async (showLoading = false) => {
+        if (showLoading) {
+            setDashboardLoading(true);
+            setDashboardError("");
+        }
+
+        try {
+            let authToken = token;
+            if (isClerkAdmin) {
+                try {
+                    const clerkToken = await getToken();
+                    if (clerkToken) authToken = clerkToken;
+                } catch (tokenError) {
+                    if (!authToken) throw tokenError;
+                }
+            }
+            if (!authToken) throw new Error("Your admin session has expired. Please sign in again.");
+
+            const headers: Record<string, string> = { Authorization: "Bearer " + authToken };
+            if (isClerkAdmin) headers["x-user-email"] = clerkEmail;
+            const res = await fetch("/api/admin/dashboard", {                headers,                signal: AbortSignal.timeout(20000),            });            const result = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                if ((res.status === 401 || res.status === 403) && !isClerkAdmin) {
+                    setToken(null);
+                    setRole(null);
+                    localStorage.removeItem("adminToken");
+                    localStorage.removeItem("userRole");
+                    localStorage.removeItem("userData");
+                    window.dispatchEvent(new Event("auth-change"));
+                    navigate("/login");
+                }
+                throw new Error(result.message || ("Dashboard request failed (" + res.status + ")."));
+            }
+
+            setData({
+                ...result,
+                bookings: Array.isArray(result.bookings) ? result.bookings : [],
+                messages: Array.isArray(result.messages) ? result.messages : [],
+                drivers: Array.isArray(result.drivers) ? result.drivers : [],
+                chats: Array.isArray(result.chats) ? result.chats : [],
+                stats: result.stats || {},
+            });
+            setDashboardError("");
+        } catch (err) {
+            console.error("Dashboard error", err);
+            setDashboardError(err instanceof Error ? err.message : "Could not load the admin dashboard.");
+        } finally {
+            if (showLoading) setDashboardLoading(false);
+        }
+    };
+
     useEffect(() => {
-        if (!isAdmin || activeTab !== 'overview') return;
-        fetchDashboard();
-        const refreshTimer = window.setInterval(fetchDashboard, 15000);
+        if (!isAdmin || activeTab !== "overview") return;
+        fetchDashboard(true);
+        const refreshTimer = window.setInterval(() => fetchDashboard(false), 15000);
         return () => window.clearInterval(refreshTimer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAdmin, token, role, activeTab]);
-
+
     const updateBookingStatus = async (id: number, newStatus: string) => {
 
         try {
@@ -453,22 +479,29 @@ export function Admin() {
 
     }
 
-    if (!data) {
-
-        return (
-
-            <div className="min-h-screen flex flex-col items-center justify-center bg-[#050505] text-white">
-
-                <div className="w-12 h-12 border-4 border-pink-500/20 border-t-pink-500 rounded-full animate-spin mb-4" />
-
-                <p className="text-pink-500 font-black uppercase tracking-[0.3em] text-sm">Syncing Systems...</p>
-
-            </div>
-
-        );
-
-    }
-
+    if (!data) {
+        if (dashboardLoading) {
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-[#050505] text-white">
+                    <div className="w-12 h-12 border-4 border-pink-500/20 border-t-pink-500 rounded-full animate-spin mb-4" />
+                    <p className="text-pink-500 font-black uppercase tracking-[0.3em] text-sm">Opening Executive Admin...</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-[#050505] text-white px-6 text-center">
+                <div className="max-w-md rounded-3xl border border-white/10 bg-white/5 p-8">
+                    <h2 className="text-xl font-bold">Admin dashboard unavailable</h2>
+                    <p className="mt-3 text-sm text-white/60">{dashboardError || "The dashboard could not be opened."}</p>
+                    <button onClick={() => fetchDashboard(true)} className="mt-6 rounded-full bg-pink-500 px-6 py-3 text-sm font-bold text-white hover:bg-pink-400">
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
 
         <div className="min-h-screen bg-[#050505] text-white flex">
