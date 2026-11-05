@@ -193,6 +193,18 @@ test('configured admin login returns a scoped token accepted by the admin route'
     assert.equal(dashboard.status, 200);
 });
 
+test('Executive Mail admin account is accepted by the deployed API entrypoint', async () => {
+    const login = await fetch(`${baseUrl}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'hello@us-executivetravel.com', password: 'test-admin-password' }),
+    });
+    assert.equal(login.status, 200);
+    const { token } = await login.json();
+    const dashboard = await fetch(`${baseUrl}/api/admin/dashboard`, { headers: { Authorization: `Bearer ${token}` } });
+    assert.equal(dashboard.status, 200);
+});
+
 test('public driver directory only returns a safe empty state when no persistence is configured', async () => {
     const response = await fetch(`${baseUrl}/api/drivers`);
     assert.equal(response.status, 200);

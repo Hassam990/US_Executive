@@ -16,9 +16,13 @@ const { createChatToken, hashChatToken, isUuid, loadRecentChatSummaries, normali
 const JWT_OPTIONS = { issuer: 'us-executive-api', audience: 'us-executive-users' };
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || 'hassamazam999@gmail.com')
-    .split(',')
-    .map(e => e.trim().toLowerCase());
+// Keep the Vercel API allowlist aligned with the admin accounts offered by the
+// sign-in screen. ADMIN_EMAIL may add other managed accounts.
+const ADMIN_EMAILS = Array.from(new Set([
+    'hassamazam999@gmail.com',
+    'hello@us-executivetravel.com',
+    ...(process.env.ADMIN_EMAIL || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean),
+]));
 const ADMIN_EMAIL = ADMIN_EMAILS[0]; // legacy compat
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -796,6 +800,7 @@ app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
             messages: [],
             drivers: [],
             chats: [],
+            chatDataAvailable: false,
             stats: {
                 total_bookings: 0,
                 pending_bookings: 0,
@@ -811,12 +816,33 @@ app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
     }
 
     try {
-        const { data: bookings } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
-        const { data: messages } = await supabase.from('messages').select('*').order('created_at', { ascending: false });
-        const { data: drivers } = await supabase.from('drivers').select('*').order('created_at', { ascending: false });
-        const { data: analytics } = await supabase.from('analytics').select('*');
-        const chats = await loadRecentChatSummaries(supabase, 5);
-        const { count: totalChats } = await supabase.from('chat_conversations').select('id', { count: 'exact', head: true });
+        const [
+            { data: bookings, error: bookingsError },
+            { data: messages, error: messagesError },
+            { data: drivers, error: driversError },
+            { data: analytics, error: analyticsError },
+        ] = await Promise.all([
+            supabase.from('bookings').select('*').order('created_at', { ascending: false }),
+            supabase.from('messages').select('*').order('created_at', { ascending: false }),
+            supabase.from('drivers').select('*').order('created_at', { ascending: false }),
+            supabase.from('analytics').select('*'),
+        ]);
+
+        if (bookingsError || messagesError || driversError) throw (bookingsError || messagesError || driversError);
+        if (analyticsError) console.warn('Admin analytics are unavailable:', analyticsError.message);
+
+        let chats = [];
+        let totalChats = 0;
+        let chatDataAvailable = true;
+        try {
+            chats = await loadRecentChatSummaries(supabase, 5);
+            const { count, error: chatCountError } = await supabase.from('chat_conversations').select('id', { count: 'exact', head: true });
+            if (chatCountError) throw chatCountError;
+            totalChats = count || 0;
+        } catch (chatError) {
+            chatDataAvailable = false;
+            console.warn('Admin chat activity is unavailable:', chatError.message);
+        }
 
         const stats = {
             total_bookings: bookings?.length || 0,
@@ -828,7 +854,7 @@ app.get('/api/admin/dashboard', authenticateAdmin, async (req, res) => {
             active_sessions: Math.floor(Math.random() * 5) + 1
         };
 
-        res.status(200).json({ bookings: bookings || [], messages: messages || [], drivers: drivers || [], chats, stats, success: true, dbConnected: true });
+        res.status(200).json({ bookings: bookings || [], messages: messages || [], drivers: drivers || [], chats, chatDataAvailable, stats, success: true, dbConnected: true });
     } catch (error) {
         res.status(200).json({ 
             bookings: [], 
