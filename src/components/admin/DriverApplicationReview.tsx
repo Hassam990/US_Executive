@@ -41,6 +41,8 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
     const declarations = application.declarations || {};
     const [documents, setDocuments] = useState<Record<string, any>>({});
     const [loadingDocuments, setLoadingDocuments] = useState(true);
+    const [openingDocument, setOpeningDocument] = useState<string | null>(null);
+    const [exportingPdf, setExportingPdf] = useState(false);
     const [status, setStatus] = useState(driver.application_status || "Application Received");
     const [savedStatus, setSavedStatus] = useState(driver.application_status || "Application Received");
     const [savingStatus, setSavingStatus] = useState(false);
@@ -66,6 +68,35 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
             Authorization: `Bearer ${token}`,
             ...(isClerkAdmin && clerkEmail ? { "x-user-email": clerkEmail } : {}),
         };
+    };
+
+    const getFreshDocuments = async () => {
+        const response = await fetch(`/api/admin/drivers/${driver.id}/documents`, { headers: await headers() });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.message || "Private documents could not be refreshed.");
+        return result.documents || {};
+    };
+
+    const openDocument = async (documentKey: string) => {
+        const documentWindow = window.open("about:blank", "_blank");
+        if (!documentWindow) {
+            window.alert("Please allow pop-ups to view this private document.");
+            return;
+        }
+        documentWindow.opener = null;
+        setOpeningDocument(documentKey);
+        setError("");
+        try {
+            const freshDocuments = await getFreshDocuments();
+            const signedUrl = freshDocuments[documentKey]?.signedUrl;
+            if (!signedUrl) throw new Error("The private document is unavailable.");
+            documentWindow.location.replace(signedUrl);
+        } catch (openError) {
+            documentWindow.close();
+            setError(openError instanceof Error ? openError.message : "The private document could not be opened.");
+        } finally {
+            setOpeningDocument(null);
+        }
     };
 
     useEffect(() => {
@@ -164,13 +195,17 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
         URL.revokeObjectURL(url);
     };
 
-    const exportApplicationPdf = () => {
+    const exportApplicationPdf = async () => {
         const printWindow = window.open("", "_blank", "width=900,height=1000");
         if (!printWindow) {
             window.alert("Please allow pop-ups to create the application PDF.");
             return;
         }
         printWindow.opener = null;
+        setError("");
+        setExportingPdf(true);
+        try {
+        const pdfDocuments = await getFreshDocuments();
         const sections: Array<[string, Array<[string, unknown]>]> = [
             ["Applicant and licensing", [
                 ["Application ID", driver.id], ["Submitted", driver.created_at ? new Date(driver.created_at).toLocaleString("en-GB") : ""],
@@ -210,7 +245,7 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
                 .map(([label, value]) => `<div class="field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
             return rows ? `<section><h2>${escapeHtml(heading)}</h2><div class="grid">${rows}</div></section>` : "";
         }).join("");
-        const documentPages = Object.entries(documents).map(([key, document]: [string, any]) => {
+        const documentPages = Object.entries(pdfDocuments).map(([key, document]: [string, any]) => {
             const label = documentLabels[key] || key;
             const fileName = document.fileName || "Uploaded file";
             const source = document.signedUrl ? escapeHtml(document.signedUrl) : "";
@@ -243,6 +278,12 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
             ${sectionsHtml}${documentsSection}<footer>Confidential applicant information and uploaded documents. Handle and store securely. Generated ${escapeHtml(new Date().toLocaleString("en-GB"))} · US Executive Travel</footer></main>
             <script>window.addEventListener('load',()=>window.setTimeout(()=>window.print(),700));window.addEventListener('afterprint',()=>window.close());</script></body></html>`);
         printWindow.document.close();
+        } catch (exportError) {
+            printWindow.close();
+            setError(exportError instanceof Error ? exportError.message : "The application PDF could not be prepared.");
+        } finally {
+            setExportingPdf(false);
+        }
     };
 
     const list = (values: unknown) => Array.isArray(values) && values.length ? values.join(", ") : undefined;
@@ -257,7 +298,7 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
                         <p>{driver.email} · {driver.phone}</p>
                     </div>
                     <div className="driver-review-header-actions">
-                        <Button type="button" variant="outline" onClick={exportApplicationPdf} disabled={loadingDocuments} title={loadingDocuments ? "Loading secure document previews…" : undefined}><Printer size={16} />{loadingDocuments ? "Preparing PDF…" : "Save PDF"}</Button>
+                        <Button type="button" variant="outline" onClick={exportApplicationPdf} disabled={loadingDocuments || exportingPdf} title={loadingDocuments ? "Loading secure document previews…" : undefined}><Printer size={16} />{exportingPdf ? "Refreshing documents…" : loadingDocuments ? "Preparing PDF…" : "Save PDF"}</Button>
                         <Button type="button" variant="outline" onClick={exportApplication}>Export summary</Button>
                         <button type="button" className="driver-review-close" onClick={onClose} aria-label="Close application"><X /></button>
                     </div>
@@ -347,7 +388,7 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
                             {Object.entries(documents).length ? Object.entries(documents).map(([key, document]: [string, any]) => (
                                 <div className="driver-document-row" key={key}>
                                     <div><strong>{documentLabels[key] || key}</strong><span>{document.fileName}{document.expiryDate ? ` · expires ${document.expiryDate}` : ""}</span></div>
-                                    {document.signedUrl && <a href={document.signedUrl} target="_blank" rel="noreferrer"><Download size={15} /> View file</a>}
+                                    {(document.signedUrl || document.path) && <button type="button" onClick={() => openDocument(key)} disabled={openingDocument === key}><Download size={15} /> {openingDocument === key ? "Opening…" : "View file"}</button>}
                                 </div>
                             )) : <p className="driver-review-muted">No documents were uploaded with this application.</p>}
                         </div>
