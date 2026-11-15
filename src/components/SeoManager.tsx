@@ -37,6 +37,22 @@ const pages: Record<string, { title: string; description: string }> = {
     title: "Privacy Notice | US Executive Travel",
     description: "Read how US Executive Travel handles personal information submitted through our website and journey forms.",
   },
+  "/admin": {
+    title: "Admin Portal | US Executive Travel",
+    description: "Secure US Executive Travel management portal.",
+  },
+  "/login": {
+    title: "Sign In | US Executive Travel",
+    description: "Sign in to your US Executive Travel account.",
+  },
+  "/signup": {
+    title: "Create Account | US Executive Travel",
+    description: "Create a US Executive Travel account to manage your journeys.",
+  },
+  "/dashboard": {
+    title: "Your Journeys | US Executive Travel",
+    description: "View and manage your US Executive Travel account and journeys.",
+  },
 };
 
 function setMeta(selector: string, attribute: string, value: string) {

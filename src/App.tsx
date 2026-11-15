@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
 import { Show, useUser } from "@clerk/react";
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
@@ -35,6 +35,20 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
                 <Footer />
             </div>
         </ChatWidgetProvider>
+    );
+}
+
+function NotFoundPage() {
+    return (
+        <main className="min-h-[55vh] flex flex-col items-center justify-center px-6 py-24 text-center text-white">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.24em] text-pink-400">404 · Page not found</p>
+            <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">This journey has taken a wrong turn.</h1>
+            <p className="mt-4 max-w-lg text-sm leading-6 text-white/60">The page may have moved, or the address may be mistyped. Head home or plan your journey with our team.</p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+                <Link to="/" className="rounded-full bg-pink-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-pink-400">Back to home</Link>
+                <Link to="/book" className="rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Plan a journey</Link>
+            </div>
+        </main>
     );
 }
 
@@ -100,6 +114,9 @@ function App() {
 
                     {/* Admin */}
                     <Route path="/admin" element={<Admin />} />
+
+                    {/* Branded fallback for unknown URLs */}
+                    <Route path="*" element={<PublicLayout><NotFoundPage /></PublicLayout>} />
                 </Routes>
             </Suspense>
         </>
