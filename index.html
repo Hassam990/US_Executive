@@ -24,6 +24,16 @@
     <meta name="twitter:title" content="Surrey Chauffeur &amp; Airport Transfers | US Executive Travel" />
     <meta name="twitter:description" content="Book chauffeur journeys from Surrey to London and UK airports. Compare vehicles, confirm your fare and plan online." />
     <meta name="twitter:image" content="https://us-executivetravel.com/logo.png" />
+    <style>
+      html, body, #root { min-height: 100%; margin: 0; background: #0c0a0b; }
+      #seo-fallback { min-height: 100vh; max-width: 70rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; color: #f4efeb; font: 1rem/1.7 Arial, sans-serif; }
+      #seo-fallback a { color: #f078b9; }
+      #seo-fallback h1, #seo-fallback h2 { line-height: 1.15; }
+      #seo-fallback h1 { max-width: 16ch; font-size: clamp(2.25rem, 8vw, 4rem); }
+      #seo-fallback h2 { margin-top: 2rem; font-size: clamp(1.5rem, 5vw, 2.25rem); }
+      #seo-fallback .fallback-links { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; }
+      #seo-fallback img { width: 9rem; height: auto; }
+    </style>
   </head>
   <body>
     <script id="site-structured-data" type="application/ld+json">
@@ -39,7 +49,34 @@
       "areaServed": [{"@type":"AdministrativeArea","name":"Surrey, England"},{"@type":"City","name":"London"},{"@type":"Country","name":"United Kingdom"}]
     }
     </script>
-    <div id="root"></div>
+    <div id="root">
+      <main id="seo-fallback">
+        <header>
+          <img src="/logo.png" alt="US Executive Travel chauffeur service logo" width="288" height="120" />
+          <p>Private travel, considered</p>
+          <h1>Surrey Chauffeur and Airport Transfers</h1>
+          <p>Plan a private chauffeur journey from Surrey to London, a UK airport, cruise port, station or another destination. Choose a vehicle, share your pickup details and review your fare before confirming.</p>
+          <p>Call <a href="tel:+447412671467">07412 671467</a> or <a href="/book">start planning your journey</a>.</p>
+        </header>
+        <section aria-labelledby="fallback-airport-heading">
+          <h2 id="fallback-airport-heading">Airport transfers from Surrey</h2>
+          <p>Arrange a pre-booked pickup to or from a major UK airport. Flight-aware pickup planning helps the team prepare for early arrivals and delays. Share your flight and journey details when you book.</p>
+          <a href="/services">Explore airport and other chauffeur services</a>
+        </section>
+        <section aria-labelledby="fallback-journeys-heading">
+          <h2 id="fallback-journeys-heading">Chauffeur journeys for business and leisure</h2>
+          <p>Travel to meetings, cruise terminals, stations and special occasions. Choose from business class, first class and executive MPV options for individuals, families and groups.</p>
+          <p>Based in Surrey, journeys serve Reigate, Redhill, Banstead, Horley and nearby areas, with trips to London and destinations across the UK.</p>
+          <nav class="fallback-links" aria-label="Explore US Executive Travel">
+            <a href="/services">Services</a>
+            <a href="/fleet">Fleet</a>
+            <a href="/drivers">Our chauffeurs</a>
+            <a href="/contact">Contact</a>
+            <a href="/book">Plan a journey</a>
+          </nav>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

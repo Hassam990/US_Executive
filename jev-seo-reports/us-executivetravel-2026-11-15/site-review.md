@@ -32,11 +32,17 @@ The supplied AIOSEO report, generated on 2026-11-15 for `https://www.us-executiv
 - Jev live crawl: blocked before crawling because local DNS did not resolve the host to a public address. No Jev judgments or PageSpeed/Core Web Vitals measurements were produced.
 - Direct homepage, robots, and sitemap checks from this environment were unavailable. The provided AIOSEO report does confirm canonical and robots data from its external scan.
 
+## Follow-up from the supplied 83/100 overview
+
+The follow-up scan reports 22/28 passed, 1 warning, and 5 failed tests. It now accepts the 57-character title and 115-character description. It still reports no H1/H2, image ALT, or internal links because the original HTML response contained only an empty React root. The homepage now ships a concise, styled HTML fallback with one H1, section H2s, an alt-described brand image, and internal links. React replaces this fallback when the app starts. The copy is useful to visitors without JavaScript and is not hidden keyword text.
+
+Other overview signals need separate verification: the mobile warning conflicts with the existing viewport and responsive CSS, and INP/DOM metrics were unavailable or not measured against field data here. No social URLs were supplied, so no profiles were invented. The 500-word recommendation is a generic tool heuristic; no filler was added to reach that threshold. Re-run the scanner against the deployed build to verify the static HTML change.
+
 ## Prioritized follow-up
 
 | Priority | Action | Evidence / reason | Status |
 |---|---|---|---|
-| P1 | Prerender public routes with their H1, H2, and internal links in initial HTML. | AIOSEO's external scan found no headings or links in the homepage HTML. Current React content is client-rendered. | Not implemented |
+| P1 | Prerender public routes with their H1, H2, and internal links in initial HTML. | The homepage now has an HTML fallback; other routes still rely on client rendering. | Partially implemented |
 | P1 | Verify the AIOSEO directory-listing warning against the flagged directory URL. | The PDF does not identify the exact directory path; the result may be a SPA fallback heuristic. | Needs the flagged URL / live verification |
 | P2 | Re-run AIOSEO after deployment to confirm the new 57-character title is live. | The attached scan captured the prior 71-character title. | Pending deployment and external recrawl |
 | P2 | Rerun Jev against the `www` URL after local DNS/network access is available. | The supplied report shows the `www` host is the entry URL, but Jev's public-address guard could not resolve it in this environment. | Blocked on local reachability |
