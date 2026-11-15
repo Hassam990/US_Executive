@@ -132,12 +132,35 @@ export function Home() {
         </div>
       </section>
 
+      <section className="home-faq site-section home-reveal" aria-labelledby="home-faq-title">
+        <div className="site-container home-faq-inner">
+          <div>
+            <p className="eyebrow">Planning your journey</p>
+            <h2 id="home-faq-title">Surrey chauffeur and airport transfer questions.</h2>
+          </div>
+          <div className="home-faq-list">
+            <details>
+              <summary>Do you provide Heathrow and Gatwick airport transfers?</summary>
+              <p>Yes. You can request a pre-booked chauffeur transfer to or from Heathrow, Gatwick and other major UK airports. Share your flight details so the team can plan around your arrival.</p>
+            </details>
+            <details>
+              <summary>Which areas do your Surrey chauffeurs cover?</summary>
+              <p>Journeys start in Reigate, Redhill, Banstead, Horley and nearby Surrey areas, with pre-booked travel to London, airports, cruise ports, stations and destinations across the UK.</p>
+            </details>
+            <details>
+              <summary>Which vehicle should I book?</summary>
+              <p>Choose business class or first class for an executive journey, or an executive MPV for additional passengers and luggage. Compare passenger and bag capacity on the fleet page before you book.</p>
+            </details>
+          </div>
+        </div>
+      </section>
+
       <section className="home-cta site-section home-reveal">
         <div className="site-container home-cta-inner">
           <div><p className="eyebrow">Your next journey</p><h2>Let’s get you there.</h2></div>
           <div className="home-cta-actions">
             <Link to="/book" className="button button-primary">Plan your journey <ArrowUpRight size={17} /></Link>
-            <a href="tel:07412671467" className="home-cta-phone">Prefer to call? 07412 671467</a>
+            <a href="tel:+447412671467" className="home-cta-phone">Prefer to call? 07412 671467</a>
           </div>
         </div>
       </section>

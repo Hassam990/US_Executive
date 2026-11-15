@@ -558,7 +558,7 @@ export default function Book() {
 
                     {step === 3 && (
                         <p className="text-center text-white/30 text-xs mt-4">
-                            By confirming you agree to our terms. Questions? <a href="tel:07412671467" className="text-pink-400 underline">Call 07412671467</a>
+                            By confirming you agree to our terms. Questions? <a href="tel:+447412671467" className="text-pink-400 underline">Call 07412 671467</a>
                         </p>
                     )}
                 </div>

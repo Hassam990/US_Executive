@@ -7,7 +7,7 @@ const image = `${SITE}/logo.png`;
 const pages: Record<string, { title: string; description: string }> = {
   "/": {
     title: "Surrey Chauffeur & Airport Transfers | US Executive Travel",
-    description: "Surrey chauffeur service for London and UK airport transfers. Compare vehicles, confirm your fare and plan online.",
+    description: "Surrey chauffeur service for London, Heathrow and Gatwick airport transfers. Compare vehicles and plan a private journey online.",
   },
   "/services": {
     title: "Surrey Airport & Chauffeur Services | US Executive Travel",

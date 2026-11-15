@@ -61,7 +61,7 @@ export function Contact() {
                                 <div>
                                     <h3 className="text-xl font-bold text-white mb-2">Call Us</h3>
                                     <p className="text-white/60 mb-2">Available 24/7 for instant bookings and support.</p>
-                                    <a href="tel:07412671467" className="contact-detail-link">07412 671467</a>
+                                    <a href="tel:+447412671467" className="contact-detail-link">07412 671467</a>
                                 </div>
                             </CardContent>
                         </Card>

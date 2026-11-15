@@ -44,6 +44,14 @@ Qualitative search-result review suggests these relevant, local-intent phrases: 
 
 The primary and supporting phrases are now used naturally across the homepage, airport-transfer copy, services page, and fleet introduction. No obsolete `meta keywords` tag was added. Future keyword prioritization should use Search Console query data or an approved keyword-data provider.
 
+## Follow-up from the supplied SEOptimer overview
+
+- Its 58-character title passed. The description was 114 characters in that scan; it is now 128 characters and includes the primary Surrey chauffeur and Heathrow/Gatwick airport-transfer terms.
+- The scan counted 116 words and reported weak keyword distribution. The homepage now has a helpful airport-transfer FAQ covering airports, the Surrey service area, and vehicle choice, in addition to the route and booking content. This is customer information, not filler to reach an arbitrary word target.
+- The mobile PageSpeed snapshot showed 7.6 s Time to Interactive and a 5.09 MB total download, while desktop was materially faster. The hero video was 4,407,179 bytes. It is now 380,515 bytes, a reduction of about 91%; a 23 KB poster is shown on mobile, reduced-motion, and data-saving configurations, and the video is loaded only for desktop motion-enabled sessions. A fresh PageSpeed run is required to measure the actual impact.
+- The report did not identify a physical street address. The site serves a defined area rather than publishing a walk-in location, so no address was invented. Phone links now use the international `+44` format while keeping the familiar UK display number.
+- The report recommends social profiles, analytics, SPF/DMARC, and link building. No official social URLs or analytics property were supplied, and DNS/email authentication changes require verified mail/DNS configuration. These were not fabricated or changed. The backlink sample includes suspicious-looking automated report/share domains; review them before considering any disavowal.
+
 ## Prioritized follow-up
 
 | Priority | Action | Evidence / reason | Status |

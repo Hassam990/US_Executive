@@ -199,12 +199,12 @@ function ChatWidget({ open, target, onOpenChange }: { open: boolean; target: Cha
 
                     {mode === "human" && (
                         <form className="chat-composer" onSubmit={sendMessage}>
-                            <a href="tel:07412671467" className="chat-call-link"><Phone size={16} /><span>Call</span></a>
+                            <a href="tel:+447412671467" className="chat-call-link"><Phone size={16} /><span>Call</span></a>
                             <input value={message} onChange={(event) => setMessage(event.target.value)} maxLength={2000} placeholder={session?.status === "closed" ? "Conversation closed" : "Write a message…"} disabled={sending || session?.status === "closed"} aria-label="Write a chat message" />
                             <button type="submit" disabled={!message.trim() || sending || session?.status === "closed"} aria-label="Send message">{sending ? <Check size={17} /> : <ArrowUp size={18} />}</button>
                         </form>
                     )}
-                    <footer className="chat-panel-footer"><a href="tel:07412671467"><Phone size={13} /> 07412 671467</a><span>Private journey support</span></footer>
+                    <footer className="chat-panel-footer"><a href="tel:+447412671467"><Phone size={13} /> 07412 671467</a><span>Private journey support</span></footer>
                 </section>
             )}
             <button type="button" className={`chat-launcher ${open ? "is-open" : ""}`} onClick={() => onOpenChange(!open)} aria-expanded={open} aria-label={open ? "Close chat" : "Open chat support"}>

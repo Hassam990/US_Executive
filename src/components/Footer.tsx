@@ -26,7 +26,7 @@ export function Footer() {
         <div className="footer-column footer-contact-column">
           <h2>Speak to our team</h2>
           <ul className="footer-contact-list">
-            <li><Phone size={16} /><a href="tel:07412671467">07412 671467</a></li>
+            <li><Phone size={16} /><a href="tel:+447412671467">07412 671467</a></li>
             <li><Mail size={16} /><a href="mailto:hello@us-executivetravel.com">hello@us-executivetravel.com</a></li>
           </ul>
         </div>

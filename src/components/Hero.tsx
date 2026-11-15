@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ArrowDown, ArrowUpRight, Phone } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -6,6 +6,32 @@ import { SplitText } from "./reactbits/SplitText";
 
 export function Hero() {
   const heroRef = useRef<HTMLElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const motionPreference = window.matchMedia("(min-width: 768px) and (prefers-reduced-motion: no-preference)");
+    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
+    const syncVideo = () => {
+      if (motionPreference.matches && !saveData) {
+        if (!video.getAttribute("src")) {
+          video.src = "/chauffeur-opens-car-door.mp4";
+          video.load();
+          void video.play().catch(() => {});
+        }
+      } else if (video.hasAttribute("src")) {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      }
+    };
+
+    syncVideo();
+    motionPreference.addEventListener("change", syncVideo);
+    return () => motionPreference.removeEventListener("change", syncVideo);
+  }, []);
 
   useLayoutEffect(() => {
     if (!heroRef.current) return;
@@ -36,12 +62,13 @@ export function Hero() {
   return (
     <section ref={heroRef} className="hero-section">
       <video
-        src="/chauffeur-opens-car-door.mp4"
+        ref={videoRef}
+        poster="/chauffeur-opens-car-door-poster.webp"
         autoPlay
         muted
         loop
         playsInline
-        preload="metadata"
+        preload="none"
         aria-hidden="true"
         className="hero-video"
       />
@@ -60,7 +87,7 @@ export function Hero() {
             <Link to="/book" className="button button-primary">
               Plan your journey <ArrowUpRight aria-hidden="true" size={17} />
             </Link>
-            <a href="tel:07412671467" className="button button-secondary">
+            <a href="tel:+447412671467" className="button button-secondary">
               <Phone aria-hidden="true" size={16} /> 07412 671467
             </a>
           </div>
