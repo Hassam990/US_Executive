@@ -188,6 +188,7 @@ export function DriverApply() {
 
         const uploaded: Record<string, Record<string, unknown>> = {};
         for (const [documentType, file] of entries) {
+            // Create the short-lived upload token only after Submit, immediately before upload.
             const uploadUrlResponse = await fetch("/api/apply/upload-url", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

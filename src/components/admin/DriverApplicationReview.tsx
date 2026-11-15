@@ -393,7 +393,7 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
                             )) : <p className="driver-review-muted">No documents were uploaded with this application.</p>}
                         </div>
                     )}
-                    <p className="driver-review-privacy"><ShieldCheck size={15} /> Document links expire after five minutes. Do not forward them.</p>
+                    <p className="driver-review-privacy"><ShieldCheck size={15} /> Document links expire after 30 minutes. Do not forward them.</p>
                 </section>
 
                 <section className="driver-review-section">
