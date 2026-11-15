@@ -6,7 +6,7 @@ const services = [
   {
     title: "Airport transfers",
     icon: Plane,
-    description: "Punctual journeys to and from major UK airports. Flight monitoring helps us plan for early arrivals and delays.",
+    description: "Pre-booked chauffeur transfers between Surrey, Heathrow, Gatwick and other major UK airports. Flight monitoring helps us plan for early arrivals and delays.",
   },
   {
     title: "Cruise port transfers",
@@ -19,7 +19,7 @@ const services = [
     description: "A direct, comfortable connection to the station, with pickup timing arranged around your rail travel.",
   },
   {
-    title: "Corporate travel",
+    title: "Corporate chauffeur service",
     icon: BriefcaseBusiness,
     description: "Professional transport for meetings, roadshows and client visits, arranged around your working day.",
   },
@@ -41,8 +41,8 @@ export function Services() {
       <div className="site-container">
         <header className="page-intro">
           <p className="eyebrow">Our services</p>
-          <h1>Good journeys begin with good planning.</h1>
-          <p>From airport pickups to business travel, arrange the right vehicle and a clear fare before you set off.</p>
+          <h1>Chauffeur services in Surrey and London.</h1>
+          <p>Book Surrey airport transfers, corporate chauffeur journeys and private travel across the UK. Choose a vehicle and review your fare before you set off.</p>
         </header>
 
         <div className="service-list-grid">

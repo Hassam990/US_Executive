@@ -49,9 +49,9 @@ export function Hero() {
       <div className="hero-content site-container">
         <div className="hero-copy-block">
           <div className="hero-kicker"><span /> Private travel, considered</div>
-          <h1 className="hero-heading" aria-label="Travel that respects your time.">
-            <SplitText text="Travel that" />
-            <span className="hero-heading-accent"><SplitText text="respects your time." /></span>
+          <h1 className="hero-heading" aria-label="Surrey chauffeur journeys, made for your time.">
+            <SplitText text="Surrey chauffeur" />
+            <span className="hero-heading-accent"><SplitText text="journeys, made for you." /></span>
           </h1>
           <p className="hero-copy">
             Executive chauffeur journeys across Surrey and the UK, with a professional driver and a fixed fare agreed before you travel.

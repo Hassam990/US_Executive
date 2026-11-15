@@ -34,9 +34,15 @@ The supplied AIOSEO report, generated on 2026-11-15 for `https://www.us-executiv
 
 ## Follow-up from the supplied 83/100 overview
 
-The follow-up scan reports 22/28 passed, 1 warning, and 5 failed tests. It now accepts the 57-character title and 115-character description. It still reports no H1/H2, image ALT, or internal links because the original HTML response contained only an empty React root. The homepage now ships a concise, styled HTML fallback with one H1, section H2s, an alt-described brand image, and internal links. React replaces this fallback when the app starts. The copy is useful to visitors without JavaScript and is not hidden keyword text.
+The follow-up scan reports 22/28 passed, 1 warning, and 5 failed tests. It accepts the 57-character title and the 115-character description that was current when it ran. The description has since been revised to 114 characters to include the primary local-intent phrase. It still reports no H1/H2, image ALT, or internal links because the original HTML response contained only an empty React root. The homepage now ships a concise, styled HTML fallback with one H1, section H2s, an alt-described brand image, and internal links. React replaces this fallback when the app starts. The copy is useful to visitors without JavaScript and is not hidden keyword text.
 
 Other overview signals need separate verification: the mobile warning conflicts with the existing viewport and responsive CSS, and INP/DOM metrics were unavailable or not measured against field data here. No social URLs were supplied, so no profiles were invented. The 500-word recommendation is a generic tool heuristic; no filler was added to reach that threshold. Re-run the scanner against the deployed build to verify the static HTML change.
+
+## Keyword targeting
+
+Qualitative search-result review suggests these relevant, local-intent phrases: **Surrey chauffeur service** (primary), **Surrey airport transfers**, **Heathrow airport transfers from Surrey**, **Gatwick airport transfers from Surrey**, and **corporate chauffeur service**. Search results from [Hadley’s Surrey chauffeur page](https://hadley.london/locations/surrey/) and [Drive Chauffeur’s Surrey service page](https://drivechauffeur.co.uk/) use overlapping local service language. This is not search-volume or difficulty research; no volume numbers are claimed.
+
+The primary and supporting phrases are now used naturally across the homepage, airport-transfer copy, services page, and fleet introduction. No obsolete `meta keywords` tag was added. Future keyword prioritization should use Search Console query data or an approved keyword-data provider.
 
 ## Prioritized follow-up
 

@@ -34,8 +34,8 @@ export function Fleet() {
       <div className="site-container">
         <header className="page-intro">
           <p className="eyebrow">The fleet</p>
-          <h1>Choose the space your journey needs.</h1>
-          <p>Comfortable, carefully maintained vehicles for solo travel, executive journeys and groups.</p>
+          <h1>Executive chauffeur cars for every journey.</h1>
+          <p>Compare business class, first class and executive MPV vehicles for Surrey airport transfers, corporate travel and group journeys.</p>
         </header>
 
         <div className="fleet-list">

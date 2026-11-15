@@ -15,22 +15,22 @@ const RouteScene = lazy(() =>
 const services = [
   {
     number: "01",
-    title: "Airport journeys",
-    description: "Door-to-terminal transfers with flight-aware pickup planning and room for your luggage.",
+    title: "Airport transfers",
+    description: "Pre-booked transfers from Surrey to Heathrow, Gatwick and other major UK airports, with flight-aware pickup planning and room for your luggage.",
     icon: Plane,
     link: "/services",
   },
   {
     number: "02",
-    title: "Business travel",
-    description: "A discreet, dependable ride for meetings, roadshows and important client visits.",
+    title: "Corporate chauffeur travel",
+    description: "Professional chauffeur journeys for meetings, roadshows and important client visits in London and across the UK.",
     icon: BriefcaseBusiness,
     link: "/services",
   },
   {
     number: "03",
-    title: "Special occasions",
-    description: "Thoughtful transport for evenings, celebrations and journeys worth taking your time over.",
+    title: "Private journeys",
+    description: "Thoughtful private hire for evenings, celebrations and journeys worth taking your time over.",
     icon: Sparkles,
     link: "/services",
   },
@@ -72,7 +72,7 @@ export function Home() {
           <div className="section-heading home-reveal">
             <div>
               <p className="eyebrow">Travel, made straightforward</p>
-              <h2>Considered journeys for every occasion.</h2>
+              <h2>Chauffeur services from Surrey for every occasion.</h2>
             </div>
             <Link to="/services" className="text-link">View all services <ArrowUpRight size={16} /></Link>
           </div>
@@ -98,8 +98,8 @@ export function Home() {
       <section className="journey-section site-section">
         <div className="site-container journey-grid">
           <div className="journey-copy home-reveal">
-            <p className="eyebrow">From Surrey to the terminal</p>
-            <h2>A smoother journey starts before pickup.</h2>
+            <p className="eyebrow">Surrey airport transfers</p>
+            <h2>A smoother airport journey starts before pickup.</h2>
             <p className="journey-intro">
               Tell us where you’re going and when. We’ll confirm the details and fare, then take care of the journey while you focus on what’s ahead.
             </p>

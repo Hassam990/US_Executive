@@ -7,15 +7,15 @@ const image = `${SITE}/logo.png`;
 const pages: Record<string, { title: string; description: string }> = {
   "/": {
     title: "Surrey Chauffeur & Airport Transfers | US Executive Travel",
-    description: "Book chauffeur journeys from Surrey to London and UK airports. Compare vehicles, confirm your fare and plan online.",
+    description: "Surrey chauffeur service for London and UK airport transfers. Compare vehicles, confirm your fare and plan online.",
   },
   "/services": {
-    title: "Airport, Corporate & Private Chauffeur Services | US Executive Travel",
-    description: "Explore pre-booked UK airport transfers, cruise port and station journeys, corporate travel, point-to-point trips and private tours from Surrey.",
+    title: "Surrey Airport & Chauffeur Services | US Executive Travel",
+    description: "Book Surrey airport transfers to Heathrow and Gatwick, corporate chauffeur travel, cruise port and station trips, private hire and tours.",
   },
   "/fleet": {
     title: "Executive Cars & MPVs for Hire | US Executive Travel",
-    description: "Compare business class, first class and executive MPV options for airport transfers, business trips and group journeys.",
+    description: "Compare executive chauffeur cars, first class vehicles and MPVs for Surrey airport transfers, business travel and group journeys.",
   },
   "/drivers": {
     title: "Meet Our Chauffeurs | US Executive Travel",
