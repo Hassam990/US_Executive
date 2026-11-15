@@ -358,7 +358,7 @@ export function Admin() {
         ];
         const escapeCell = (value: unknown) => {
             const text = value == null ? "" : String(value);
-            const safeText = /^[\\t\\r ]*[=+\\-@]/.test(text) ? "'" + text : text;
+            const safeText = /^[\t\r ]*[=+@-]/.test(text) ? "'" + text : text;
             return "\"" + safeText.replace(/\"/g, "\"\"") + "\"";
         };
         const csv = [
