@@ -1,3 +1,7 @@
 User-agent: *
 Allow: /
-Sitemap: https://us_executivetravel.com/sitemap.xml
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /login
+Disallow: /signup
+Sitemap: https://us-executivetravel.com/sitemap.xml

@@ -1,6 +1,12 @@
 # US Executive Travel
 ## Details
-- Type: TravelAgency / Executive Concierge
-- URL: https://us_executivetravel.com/
-- Contact: via site
-- Services: Premium executive travel, private transport, tailored itineraries across the United States.
+- Type: Private hire chauffeur and executive travel service
+- URL: https://us-executivetravel.com/
+- Base: Surrey, England
+- Service area: Surrey, London and destinations across the UK
+- Contact: +44 7412 671467 · hello@us-executivetravel.com
+- Services: Airport transfers, cruise port transfers, station journeys, corporate travel, point-to-point journeys and private tours.
+- Bookings: https://us-executivetravel.com/book
+- Services: https://us-executivetravel.com/services
+- Fleet: https://us-executivetravel.com/fleet
+- Contact page: https://us-executivetravel.com/contact

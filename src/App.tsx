@@ -4,6 +4,7 @@ import { Show, useUser } from "@clerk/react";
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
 import { ChatWidgetProvider } from "./components/chat/ChatContext";
+import { SeoManager } from "./components/SeoManager";
 
 const Home = lazy(() => import("./pages/Home").then((module) => ({ default: module.Home })));
 const Services = lazy(() => import("./pages/Services").then((module) => ({ default: module.Services })));
@@ -77,6 +78,7 @@ function App() {
     return (
         <>
             <ScrollManager />
+            <SeoManager />
             <Suspense fallback={<div className="page-loading" role="status">Loading your page…</div>}>
                 <Routes>
                     {/* Public */}
