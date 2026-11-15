@@ -1,7 +1,7 @@
 # US Executive Travel SEO report
 
 **Review date:** 2026-11-15  
-**Review type:** Repository review plus attempted live audit  
+**Review type:** Repository review plus supplied AIOSEO scan and attempted Jev audit  
 **Production URL:** https://us-executivetravel.com/  
 **Code commit:** `380325f` (`Improve site SEO metadata and crawl files`)
 
@@ -9,11 +9,12 @@
 
 The repository contained conflicting location and business information. The homepage described a US concierge/travel agency while the service pages describe a Surrey-based private hire chauffeur service serving London and UK destinations. The sitemap used an underscore hostname and listed only the homepage. Those repository issues have been corrected and pushed to `origin/main`.
 
-The live audit is **incomplete**. The Jev SEO crawler refused the production host because it did not resolve to a public address from this environment. Browser fetches for the production host and `us-executive.vercel.app` also failed. This is not a crawl score and does not establish that the site is globally offline. No live URLs, PageSpeed results, Core Web Vitals, rankings, traffic, or Jev judgments are reported here.
+The supplied AIOSEO report, generated on 2026-11-15 for `https://www.us-executivetravel.com`, gives the homepage a score of **78/100**, with 4 critical issues, 2 recommendations, and 15 good results. It confirms the canonical host is the non-`www` URL and says both host variants redirect to the same site. The Jev crawler attempt from this environment still refused the production hostname because local DNS did not resolve it, so Jev-specific judgments and PageSpeed data remain unavailable here.
 
 ## Work completed
 
 - Added route-aware titles, descriptions, canonical links, Open Graph tags, Twitter tags, and robots directives for the React routes.
+- Shortened the homepage title from 71 characters to 57 after the AIOSEO report flagged its length.
 - Replaced the incorrect TravelAgency/United States structured data with LocalBusiness information for Surrey, London, and the United Kingdom. Removed the incorrect self-referential `sameAs` value.
 - Corrected the hostname and expanded the sitemap to include the homepage, services, fleet, drivers, contact, booking, and driver application pages.
 - Added robots exclusions for admin and account routes.
@@ -24,19 +25,24 @@ The live audit is **incomplete**. The Jev SEO crawler refused the production hos
 - `npm run build`: passed. Existing build warnings remain for unsupported CSS at-rules during minification and a large booking-page bundle.
 - JSON-LD block: parses as JSON.
 - `public/sitemap.xml`: parses as XML.
-- Jev live crawl: blocked before crawling because the host did not resolve to a public address from this environment.
-- Public-site checks of the homepage, `robots.txt`, and sitemap: unavailable from the browser fetch tool.
+- AIOSEO external scan: homepage score 78/100; meta description is 147 characters; canonical and robots directives are present; Open Graph tags and Schema.org data are detected.
+- AIOSEO reports no H1, H2, or internal links in its scanned HTML. The Vite React app renders its page headings and links client-side, so crawlers that do not render JavaScript may not see them. Static route prerendering is the recommended follow-up.
+- AIOSEO flags directory listing as possibly enabled. This needs a direct request to the relevant directory before treating it as confirmed; Vercel SPA fallback behavior can confuse directory-listing heuristics.
+- AIOSEO flags a JavaScript bundle as not minified. The local Vite production build minifies bundles, so this appears to be a heuristic false positive, but the live asset was not fetched here to verify.
+- Jev live crawl: blocked before crawling because local DNS did not resolve the host to a public address. No Jev judgments or PageSpeed/Core Web Vitals measurements were produced.
+- Direct homepage, robots, and sitemap checks from this environment were unavailable. The provided AIOSEO report does confirm canonical and robots data from its external scan.
 
 ## Prioritized follow-up
 
 | Priority | Action | Evidence / reason | Status |
 |---|---|---|---|
-| P1 | Verify the production DNS records and Vercel domain assignment for `us-executivetravel.com`, then confirm the canonical host and HTTPS redirect. | DNS lookup returned no public address from this environment; Jev's public-network guard refused the host. | Needs operator verification |
-| P1 | Rerun the Jev audit after the production hostname resolves. | No pages were crawled, so technical rules, content judgments, and field metrics are unavailable. | Blocked on reachability |
-| P2 | Consider prerendering route metadata and primary page content. | The app is a Vite React SPA; route-specific metadata is set after the client bundle runs. Search engines that do not render the app may see only the homepage shell metadata. | Not implemented |
+| P1 | Prerender public routes with their H1, H2, and internal links in initial HTML. | AIOSEO's external scan found no headings or links in the homepage HTML. Current React content is client-rendered. | Not implemented |
+| P1 | Verify the AIOSEO directory-listing warning against the flagged directory URL. | The PDF does not identify the exact directory path; the result may be a SPA fallback heuristic. | Needs the flagged URL / live verification |
+| P2 | Re-run AIOSEO after deployment to confirm the new 57-character title is live. | The attached scan captured the prior 71-character title. | Pending deployment and external recrawl |
+| P2 | Rerun Jev against the `www` URL after local DNS/network access is available. | The supplied report shows the `www` host is the entry URL, but Jev's public-address guard could not resolve it in this environment. | Blocked on local reachability |
 | P2 | Replace the square logo used as the social preview with a dedicated 1200×630 image. | Current `og:image` and `twitter:image` point to `/logo.png`; its social-card suitability was not verified. | Not implemented |
 | P3 | Run an optional keyword and competitor study only if wanted. | The linked skill's DataForSEO full mode is paid and was not run. | Not run |
 
 ## Limits
 
-This is a repository-level SEO correction and an incomplete live audit, not a Jev scorecard. No search ranking or traffic improvement is promised. DNS status, live redirect behavior, rendered page metadata, and PageSpeed data should be checked again once the production hostname is reachable.
+This report combines code review with the supplied AIOSEO homepage scan; it is not a full Jev report. The AIOSEO score is a tool score, not a ranking or traffic prediction. The supplied scan confirms the non-`www` canonical and redirect consistency. No search ranking or traffic improvement is promised. Jev judgments and live PageSpeed data should be added after the production site is reachable from the local audit environment.
