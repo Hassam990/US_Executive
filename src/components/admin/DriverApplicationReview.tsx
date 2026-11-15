@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, LoaderCircle, ShieldCheck, X } from "lucide-react";
+import { Download, LoaderCircle, Printer, ShieldCheck, X } from "lucide-react";
 
 const statuses = [
     "Application Received", "Pending Licensing Approval", "Documents Pending", "Under Review",
@@ -164,6 +164,73 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
         URL.revokeObjectURL(url);
     };
 
+    const exportApplicationPdf = () => {
+        const printWindow = window.open("", "_blank", "width=900,height=1000");
+        if (!printWindow) {
+            window.alert("Please allow pop-ups to create the application PDF.");
+            return;
+        }
+        printWindow.opener = null;
+        const sections: Array<[string, Array<[string, unknown]>]> = [
+            ["Applicant and licensing", [
+                ["Application ID", driver.id], ["Submitted", driver.created_at ? new Date(driver.created_at).toLocaleString("en-GB") : ""],
+                ["Status", status], ["Full name", personal.fullName || driver.name], ["Email", personal.email || driver.email],
+                ["Phone", personal.phone || driver.phone], ["Date of birth", personal.dateOfBirth],
+                ["Address", [personal.address, personal.postcode].filter(Boolean).join(", ")],
+                ["Licensing authority", personal.licensingAuthority], ["Driver licence number", personal.driverLicenceNumber || driver.license],
+                ["Licence issue date", personal.driverLicenceIssueDate], ["Licence expiry date", personal.driverLicenceExpiryDate],
+                ["Licensed by RBBC", personal.licensedByRbbc], ["Experience", application.experience || driver.experience],
+            ]],
+            ["Compliance", [["Enhanced DBS check", compliance.dbsCheck], ["DBS Update Service", compliance.dbsUpdateService],
+                ["Medical assessment", compliance.medicalAssessment], ["Safeguarding training", compliance.safeguardingTraining],
+                ["Knowledge test", compliance.knowledgeTest], ["Licence valid", compliance.driverLicenceValid],
+                ["Restrictions", compliance.confidentialRestrictions]]],
+            ["Vehicle", [["Registration", vehicle.registration], ["Vehicle", [vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" ") || driver.vehicle],
+                ["Colour", vehicle.colour], ["Passenger seats", vehicle.passengerSeats], ["Vehicle authority", vehicle.licensingAuthority],
+                ["Vehicle licence number", vehicle.licenceNumber], ["Vehicle licence expiry", vehicle.licenceExpiryDate],
+                ["MOT expiry", vehicle.motExpiryDate], ["Insurance expiry", vehicle.insuranceExpiryDate],
+                ["Registered keeper", vehicle.registeredKeeper], ["Applicant is keeper", vehicle.applicantIsKeeper],
+                ["Licensed by RBBC", vehicle.licensedByRbbc], ["Insurance covers applicant", vehicle.insuranceCoversApplicant]]],
+            ["Availability", [["Work types", list(availability.workTypes)], ["Airports", list(availability.airports)],
+                ["Days", list(availability.days)], ["Preferred hours", list(availability.hours)], ["Operating areas", availability.operatingAreas],
+                ["Start date", availability.startDate], ["Early airport runs", availability.earlyMorningTransfers],
+                ["Late night collections", availability.lateNightCollections], ["Driver availability", driverAvailable ? "Available" : "Unavailable"],
+                ["Vehicle availability", vehicleAvailable ? "Available" : "Unavailable"]]],
+            ["Uploaded documents", Object.entries(documents).map(([key, document]: [string, any]) =>
+                [documentLabels[key] || key, [document.fileName, document.expiryDate ? `Expires ${document.expiryDate}` : ""].filter(Boolean).join(" · ")])],
+            ["Declarations", [
+                ...Object.entries(declarations).filter(([key]) => key !== "marketingConsent").map(([key, value]): [string, unknown] =>
+                    [key.replace(/([A-Z])/g, " $1"), value ? "Confirmed" : "Not confirmed"]),
+                ["Marketing consent", declarations.marketingConsent ? "Yes" : "No"],
+            ]],
+        ];
+        const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+        })[char]!);
+        const sectionsHtml = sections.map(([heading, fields]) => {
+            const rows = fields.filter(([, value]) => value !== undefined && value !== null && value !== "")
+                .map(([label, value]) => `<div class="field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+            return rows ? `<section><h2>${escapeHtml(heading)}</h2><div class="grid">${rows}</div></section>` : "";
+        }).join("");
+        printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Driver Application - ${escapeHtml(personal.fullName || driver.name)}</title>
+            <style>
+                *{box-sizing:border-box}body{margin:0;background:#f7f5f6;color:#262126;font:14px/1.5 Arial,sans-serif}
+                main{max-width:900px;margin:32px auto;background:#fff;padding:42px 48px;box-shadow:0 10px 40px #34132212}
+                header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #ec4899;padding-bottom:22px;margin-bottom:26px}
+                .brand{display:flex;align-items:center;gap:12px}.mark{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#ec4899;color:white;font-weight:800;font-size:16px}
+                .brand strong{display:block;font-size:16px;letter-spacing:.03em}.brand span,.meta{color:#766d73;font-size:11px}
+                h1{font-size:24px;margin:0 0 4px}h2{font-size:14px;color:#c02676;border-bottom:1px solid #f3d4e4;padding-bottom:7px;margin:24px 0 12px}
+                .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}.field{padding:7px 0;border-bottom:1px solid #f1edf0;min-width:0;break-inside:avoid}
+                .field span{display:block;color:#766d73;font-size:10px;text-transform:uppercase;letter-spacing:.05em}.field strong{display:block;overflow-wrap:anywhere;font-weight:600}
+                footer{margin-top:28px;padding-top:12px;border-top:1px solid #eee;color:#766d73;font-size:10px}
+                @page{size:A4;margin:14mm}@media print{body{background:#fff}main{margin:0;padding:0;max-width:none;box-shadow:none}header{break-after:avoid}section{break-inside:avoid}}
+            </style></head><body><main><header><div class="brand"><div class="mark">US</div><div><strong>US EXECUTIVE TRAVEL</strong><span>Private hire driver network · Confidential application</span></div></div><div class="meta">APPLICATION RECORD</div></header>
+            <h1>${escapeHtml(personal.fullName || driver.name || "Driver application")}</h1><div class="meta">Application #${escapeHtml(driver.id)} · ${escapeHtml(status)}</div>
+            ${sectionsHtml}<footer>Confidential applicant information. Handle and store securely. Generated ${escapeHtml(new Date().toLocaleString("en-GB"))} · US Executive Travel</footer></main>
+            <script>window.addEventListener('load',()=>window.setTimeout(()=>window.print(),250));window.addEventListener('afterprint',()=>window.close());</script></body></html>`);
+        printWindow.document.close();
+    };
+
     const list = (values: unknown) => Array.isArray(values) && values.length ? values.join(", ") : undefined;
 
     return (
@@ -176,6 +243,7 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
                         <p>{driver.email} · {driver.phone}</p>
                     </div>
                     <div className="driver-review-header-actions">
+                        <Button type="button" variant="outline" onClick={exportApplicationPdf}><Printer size={16} />Save PDF</Button>
                         <Button type="button" variant="outline" onClick={exportApplication}>Export summary</Button>
                         <button type="button" className="driver-review-close" onClick={onClose} aria-label="Close application"><X /></button>
                     </div>

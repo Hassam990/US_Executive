@@ -347,8 +347,37 @@ export function Admin() {
 
         });
 
-    }, [data, searchQuery, filterStatus]);
-
+    }, [data, searchQuery, filterStatus]);
+
+    const exportBookings = () => {
+        const columns: Array<[string, string]> = [
+            ["Booking ID", "id"], ["Name", "name"], ["Email", "email"], ["Phone", "phone"],
+            ["Pick-up", "pickup"], ["Drop-off", "dropoff"], ["Date", "date"], ["Time", "time"],
+            ["Return date", "return_date"], ["Return time", "return_time"], ["Passengers", "passengers"],
+            ["Vehicle", "vehicle_class"], ["Status", "status"], ["Created at", "created_at"],
+        ];
+        const escapeCell = (value: unknown) => {
+            const text = value == null ? "" : String(value);
+            const safeText = /^[\\t\\r ]*[=+\\-@]/.test(text) ? "'" + text : text;
+            return "\"" + safeText.replace(/\"/g, "\"\"") + "\"";
+        };
+        const csv = [
+            columns.map(([label]) => escapeCell(label)).join(","),
+            ...filteredBookings.map((booking: Record<string, unknown>) =>
+                columns.map(([, key]) => escapeCell(booking[key])).join(",")
+            ),
+        ].join("\\r\\n");
+        const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "us-executive-bookings-" + new Date().toISOString().slice(0, 10) + ".csv";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+
     const filteredMessages = useMemo(() => {
 
         if (!data?.messages) return [];
@@ -649,7 +678,7 @@ export function Admin() {
 
                         </div>
 
-                        <Button variant="ghost" className="rounded-2xl h-12 px-6 border border-white/5 bg-white/5 hover:bg-white/10">
+                        <Button type="button" variant="ghost" onClick={exportBookings} disabled={filteredBookings.length === 0} className="rounded-2xl h-12 px-6 border border-white/5 bg-white/5 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed">
 
                             <Download className="w-4 h-4 mr-2" />
 
