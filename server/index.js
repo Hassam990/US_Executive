@@ -11,6 +11,7 @@ const { verifyClerkToken } = require('./clerkAuth.cjs');
 const chatSystem = require('./chatSystem.cjs');
 const { createChatToken, hashChatToken, isUuid, loadRecentChatSummaries, normalizeDriverProfile, validateVisitorIdentity, validateVisitorMessage } = chatSystem;
 const JWT_OPTIONS = { issuer: 'us-executive-api', audience: 'us-executive-users' };
+const PRIVATE_DOCUMENT_LINK_TTL_SECONDS = 30 * 60;
 const validator = require('validator');
 const driverApplication = require('./driverApplication.cjs');
 const { APPLICATION_STATUSES, BUCKET, MAX_DOCUMENT_BYTES, getDocumentExtension, getDueExpiryReminders, secretsMatch, validateApplicationPayload, validateSessionId } = driverApplication;
@@ -975,11 +976,11 @@ app.get('/api/admin/drivers/:id/documents', authenticateAdmin, async (req, res) 
         const docs = driver?.application_data?.documents || {};
         const paths = Object.values(docs).map((document) => document?.path).filter((path) => typeof path === 'string');
         if (!paths.length) return res.status(200).json({ success: true, documents: {} });
-        const { data: signed, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, 300);
+        const { data: signed, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, PRIVATE_DOCUMENT_LINK_TTL_SECONDS);
         if (error) throw error;
         const signedByPath = new Map((signed || []).map((item) => [item.path, item.signedUrl]));
         const documents = Object.fromEntries(Object.entries(docs).map(([key, document]) => [key, { ...document, signedUrl: signedByPath.get(document.path) || null }]));
-        return res.status(200).json({ success: true, documents, expiresIn: 300 });
+        return res.status(200).json({ success: true, documents, expiresIn: PRIVATE_DOCUMENT_LINK_TTL_SECONDS });
     } catch (error) {
         console.error('Could not sign driver documents:', error.message);
         return res.status(500).json({ success: false, message: 'Unable to load private documents.' });

@@ -1,6 +1,48 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, LoaderCircle, Printer, ShieldCheck, X } from "lucide-react";
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
+function canvasToJpeg(canvas: HTMLCanvasElement) {
+    return new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("A PDF page could not be prepared for printing.")), "image/jpeg", 0.94);
+    });
+}
+
+async function renderPdfPages(blob: Blob, label: string, urls: string[]) {
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+    const pages: string[] = [];
+
+    try {
+        const pdf = await loadingTask.promise;
+        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+            const page = await pdf.getPage(pageNumber);
+            const baseViewport = page.getViewport({ scale: 1 });
+            const scale = Math.min(2.5, 2100 / Math.max(baseViewport.width, baseViewport.height));
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d", { alpha: false });
+            if (!context) throw new Error(`The ${label} PDF could not be rendered.`);
+
+            canvas.width = Math.ceil(viewport.width);
+            canvas.height = Math.ceil(viewport.height);
+            await page.render({ canvas, canvasContext: context, viewport }).promise;
+            const pageBlob = await canvasToJpeg(canvas);
+            const pageUrl = URL.createObjectURL(pageBlob);
+            urls.push(pageUrl);
+            pages.push(pageUrl);
+            canvas.width = 0;
+            canvas.height = 0;
+            page.cleanup();
+        }
+    } finally {
+        await loadingTask.destroy();
+    }
+
+    return pages;
+}
 
 const statuses = [
     "Application Received", "Pending Licensing Approval", "Documents Pending", "Under Review",
@@ -114,7 +156,7 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
             }
         })();
         return () => { active = false; };
-        // Fetch a fresh five-minute signed URL whenever another driver is opened.
+        // Fetch signed URLs when the application is opened. Document actions request fresh links before use.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [driver.id]);
 
@@ -204,61 +246,79 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
         printWindow.opener = null;
         setError("");
         setExportingPdf(true);
+        const attachmentObjectUrls: string[] = [];
+        const cleanupAttachmentUrls = () => attachmentObjectUrls.forEach((url) => URL.revokeObjectURL(url));
         try {
-        const pdfDocuments = await getFreshDocuments();
-        const sections: Array<[string, Array<[string, unknown]>]> = [
-            ["Applicant and licensing", [
-                ["Application ID", driver.id], ["Submitted", driver.created_at ? new Date(driver.created_at).toLocaleString("en-GB") : ""],
-                ["Status", status], ["Full name", personal.fullName || driver.name], ["Email", personal.email || driver.email],
-                ["Phone", personal.phone || driver.phone], ["Date of birth", personal.dateOfBirth],
-                ["Address", [personal.address, personal.postcode].filter(Boolean).join(", ")],
-                ["Licensing authority", personal.licensingAuthority], ["Driver licence number", personal.driverLicenceNumber || driver.license],
-                ["Licence issue date", personal.driverLicenceIssueDate], ["Licence expiry date", personal.driverLicenceExpiryDate],
-                ["Licensed by RBBC", personal.licensedByRbbc], ["Experience", application.experience || driver.experience],
-            ]],
-            ["Compliance", [["Enhanced DBS check", compliance.dbsCheck], ["DBS Update Service", compliance.dbsUpdateService],
-                ["Medical assessment", compliance.medicalAssessment], ["Safeguarding training", compliance.safeguardingTraining],
-                ["Knowledge test", compliance.knowledgeTest], ["Licence valid", compliance.driverLicenceValid],
-                ["Restrictions", compliance.confidentialRestrictions]]],
-            ["Vehicle", [["Registration", vehicle.registration], ["Vehicle", [vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" ") || driver.vehicle],
-                ["Colour", vehicle.colour], ["Passenger seats", vehicle.passengerSeats], ["Vehicle authority", vehicle.licensingAuthority],
-                ["Vehicle licence number", vehicle.licenceNumber], ["Vehicle licence expiry", vehicle.licenceExpiryDate],
-                ["MOT expiry", vehicle.motExpiryDate], ["Insurance expiry", vehicle.insuranceExpiryDate],
-                ["Registered keeper", vehicle.registeredKeeper], ["Applicant is keeper", vehicle.applicantIsKeeper],
-                ["Licensed by RBBC", vehicle.licensedByRbbc], ["Insurance covers applicant", vehicle.insuranceCoversApplicant]]],
-            ["Availability", [["Work types", list(availability.workTypes)], ["Airports", list(availability.airports)],
-                ["Days", list(availability.days)], ["Preferred hours", list(availability.hours)], ["Operating areas", availability.operatingAreas],
-                ["Start date", availability.startDate], ["Early airport runs", availability.earlyMorningTransfers],
-                ["Late night collections", availability.lateNightCollections], ["Driver availability", driverAvailable ? "Available" : "Unavailable"],
-                ["Vehicle availability", vehicleAvailable ? "Available" : "Unavailable"]]],
-            ["Declarations", [
-                ...Object.entries(declarations).filter(([key]) => key !== "marketingConsent").map(([key, value]): [string, unknown] =>
-                    [key.replace(/([A-Z])/g, " $1"), value ? "Confirmed" : "Not confirmed"]),
-                ["Marketing consent", declarations.marketingConsent ? "Yes" : "No"],
-            ]],
-        ];
-        const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
-            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-        })[char]!);
-        const sectionsHtml = sections.map(([heading, fields]) => {
-            const rows = fields.filter(([, value]) => value !== undefined && value !== null && value !== "")
-                .map(([label, value]) => `<div class="field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
-            return rows ? `<section><h2>${escapeHtml(heading)}</h2><div class="grid">${rows}</div></section>` : "";
-        }).join("");
-        const documentPages = Object.entries(pdfDocuments).map(([key, document]: [string, any]) => {
-            const label = documentLabels[key] || key;
-            const fileName = document.fileName || "Uploaded file";
-            const source = document.signedUrl ? escapeHtml(document.signedUrl) : "";
-            const isPdf = document.mimeType === "application/pdf" || /\.pdf$/i.test(fileName);
-            const preview = !source
-                ? `<p class="missing-document">A secure preview link is unavailable. Reopen this application and try again.</p>`
-                : isPdf
-                    ? `<iframe class="pdf-document" src="${source}" title="${escapeHtml(label)}"></iframe>`
-                    : `<img class="image-document" src="${source}" alt="${escapeHtml(label)}" />`;
-            return `<section class="attachment-page"><h2>Uploaded document · ${escapeHtml(label)}</h2><p class="attachment-name">${escapeHtml(fileName)}${document.expiryDate ? ` · Expires ${escapeHtml(document.expiryDate)}` : ""}</p>${preview}</section>`;
-        }).join("");
-        const documentsSection = documentPages || `<section><h2>Uploaded documents</h2><p class="missing-document">No documents were uploaded with this application.</p></section>`;
-        printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Driver Application - ${escapeHtml(personal.fullName || driver.name)}</title>
+            printWindow.document.title = "Preparing application PDF";
+            const pdfDocuments = await getFreshDocuments();
+            const sections: Array<[string, Array<[string, unknown]>]> = [
+                ["Applicant and licensing", [
+                    ["Application ID", driver.id], ["Submitted", driver.created_at ? new Date(driver.created_at).toLocaleString("en-GB") : ""],
+                    ["Status", status], ["Full name", personal.fullName || driver.name], ["Email", personal.email || driver.email],
+                    ["Phone", personal.phone || driver.phone], ["Date of birth", personal.dateOfBirth],
+                    ["Address", [personal.address, personal.postcode].filter(Boolean).join(", ")],
+                    ["Licensing authority", personal.licensingAuthority], ["Driver licence number", personal.driverLicenceNumber || driver.license],
+                    ["Licence issue date", personal.driverLicenceIssueDate], ["Licence expiry date", personal.driverLicenceExpiryDate],
+                    ["Licensed by RBBC", personal.licensedByRbbc], ["Experience", application.experience || driver.experience],
+                ]],
+                ["Compliance", [["Enhanced DBS check", compliance.dbsCheck], ["DBS Update Service", compliance.dbsUpdateService],
+                    ["Medical assessment", compliance.medicalAssessment], ["Safeguarding training", compliance.safeguardingTraining],
+                    ["Knowledge test", compliance.knowledgeTest], ["Licence valid", compliance.driverLicenceValid],
+                    ["Restrictions", compliance.confidentialRestrictions]]],
+                ["Vehicle", [["Registration", vehicle.registration], ["Vehicle", [vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" ") || driver.vehicle],
+                    ["Colour", vehicle.colour], ["Passenger seats", vehicle.passengerSeats], ["Vehicle authority", vehicle.licensingAuthority],
+                    ["Vehicle licence number", vehicle.licenceNumber], ["Vehicle licence expiry", vehicle.licenceExpiryDate],
+                    ["MOT expiry", vehicle.motExpiryDate], ["Insurance expiry", vehicle.insuranceExpiryDate],
+                    ["Registered keeper", vehicle.registeredKeeper], ["Applicant is keeper", vehicle.applicantIsKeeper],
+                    ["Licensed by RBBC", vehicle.licensedByRbbc], ["Insurance covers applicant", vehicle.insuranceCoversApplicant]]],
+                ["Availability", [["Work types", list(availability.workTypes)], ["Airports", list(availability.airports)],
+                    ["Days", list(availability.days)], ["Preferred hours", list(availability.hours)], ["Operating areas", availability.operatingAreas],
+                    ["Start date", availability.startDate], ["Early airport runs", availability.earlyMorningTransfers],
+                    ["Late night collections", availability.lateNightCollections], ["Driver availability", driverAvailable ? "Available" : "Unavailable"],
+                    ["Vehicle availability", vehicleAvailable ? "Available" : "Unavailable"]]],
+                ["Declarations", [
+                    ...Object.entries(declarations).filter(([key]) => key !== "marketingConsent").map(([key, value]): [string, unknown] =>
+                        [key.replace(/([A-Z])/g, " $1"), value ? "Confirmed" : "Not confirmed"]),
+                    ["Marketing consent", declarations.marketingConsent ? "Yes" : "No"],
+                ]],
+            ];
+            const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+            })[char]!);
+            const sectionsHtml = sections.map(([heading, fields]) => {
+                const rows = fields.filter(([, value]) => value !== undefined && value !== null && value !== "")
+                    .map(([label, value]) => `<div class="field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+                return rows ? `<section><h2>${escapeHtml(heading)}</h2><div class="grid">${rows}</div></section>` : "";
+            }).join("");
+
+            const documentPages: string[] = [];
+            const documentEntries = Object.entries(pdfDocuments) as Array<[string, any]>;
+            for (const [key, document] of documentEntries) {
+                const label = documentLabels[key] || key;
+                const fileName = document.fileName || "Uploaded file";
+                if (!document.signedUrl) throw new Error(`${label} is missing a secure download link. Reopen the application and try the PDF export again.`);
+
+                const response = await fetch(document.signedUrl);
+                if (!response.ok) throw new Error(`${label} could not be downloaded for the PDF (HTTP ${response.status}). Reopen the application and retry.`);
+                const blob = await response.blob();
+                if (!blob.size) throw new Error(`${label} downloaded empty and could not be included in the PDF.`);
+
+                const isPdf = document.mimeType === "application/pdf" || /\.pdf$/i.test(fileName);
+                const isImage = ["image/jpeg", "image/png"].includes(document.mimeType) || /\.(jpe?g|png)$/i.test(fileName);
+                if (!isPdf && !isImage) throw new Error(`${label} has an unsupported file type and could not be included.`);
+
+                const pageUrls = isPdf
+                    ? await renderPdfPages(blob, label, attachmentObjectUrls)
+                    : [URL.createObjectURL(blob)];
+                if (!isPdf) attachmentObjectUrls.push(pageUrls[0]);
+                for (const [index, pageUrl] of pageUrls.entries()) {
+                    const pageLabel = isPdf ? `${label} · Page ${index + 1} of ${pageUrls.length}` : label;
+                    documentPages.push(`<section class="attachment-page"><h2>Uploaded document · ${escapeHtml(pageLabel)}</h2><p class="attachment-name">${escapeHtml(fileName)}${document.expiryDate ? ` · Expires ${escapeHtml(document.expiryDate)}` : ""}</p><img class="image-document" src="${escapeHtml(pageUrl)}" alt="${escapeHtml(pageLabel)}" /></section>`);
+                }
+            }
+            const documentsSection = documentPages.join("") || `<section><h2>Uploaded documents</h2><p class="missing-document">No documents were uploaded with this application.</p></section>`;
+            printWindow.document.open();
+            printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Driver Application - ${escapeHtml(personal.fullName || driver.name)}</title>
             <style>
                 *{box-sizing:border-box}body{margin:0;background:#f7f5f6;color:#262126;font:14px/1.5 Arial,sans-serif}
                 main{max-width:900px;margin:32px auto;background:#fff;padding:42px 48px;box-shadow:0 10px 40px #34132212}
@@ -268,17 +328,19 @@ export function DriverApplicationReview({ driver, onClose, onRefresh, accessToke
                 h1{font-size:24px;margin:0 0 4px}h2{font-size:14px;color:#c02676;border-bottom:1px solid #f3d4e4;padding-bottom:7px;margin:24px 0 12px}
                 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}.field{padding:7px 0;border-bottom:1px solid #f1edf0;min-width:0;break-inside:avoid}
                 .field span{display:block;color:#766d73;font-size:10px;text-transform:uppercase;letter-spacing:.05em}.field strong{display:block;overflow-wrap:anywhere;font-weight:600}
-                .attachment-page{break-before:page;page-break-before:always}.attachment-name{margin:0 0 12px;color:#766d73;font-size:12px;overflow-wrap:anywhere}
-                .image-document{display:block;max-width:100%;max-height:245mm;margin:0 auto;object-fit:contain;object-position:top center}
-                .pdf-document{display:block;width:100%;height:255mm;border:0}.missing-document{padding:16px;border:1px solid #f1d3e2;border-radius:10px;color:#766d73}
+                .attachment-page{break-before:page;page-break-before:always;break-inside:avoid;page-break-inside:avoid}.attachment-name{margin:0 0 12px;color:#766d73;font-size:12px;overflow-wrap:anywhere}
+                .image-document{display:block;width:auto;max-width:100%;height:auto;max-height:235mm;margin:0 auto;object-fit:contain;object-position:top center}
+                .missing-document{padding:16px;border:1px solid #f1d3e2;border-radius:10px;color:#766d73}
                 footer{margin-top:28px;padding-top:12px;border-top:1px solid #eee;color:#766d73;font-size:10px}
                 @page{size:A4;margin:14mm}@media print{body{background:#fff}main{margin:0;padding:0;max-width:none;box-shadow:none}header{break-after:avoid}.attachment-page{break-inside:avoid}}
             </style></head><body><main><header><div class="brand"><div class="mark">US</div><div><strong>US EXECUTIVE TRAVEL</strong><span>Private hire driver network · Confidential application</span></div></div><div class="meta">APPLICATION RECORD</div></header>
             <h1>${escapeHtml(personal.fullName || driver.name || "Driver application")}</h1><div class="meta">Application #${escapeHtml(driver.id)} · ${escapeHtml(status)}</div>
             ${sectionsHtml}${documentsSection}<footer>Confidential applicant information and uploaded documents. Handle and store securely. Generated ${escapeHtml(new Date().toLocaleString("en-GB"))} · US Executive Travel</footer></main>
-            <script>window.addEventListener('load',()=>window.setTimeout(()=>window.print(),700));window.addEventListener('afterprint',()=>window.close());</script></body></html>`);
-        printWindow.document.close();
+            <script>window.addEventListener('load',async()=>{try{await Promise.all(Array.from(document.images,(image)=>image.decode()));window.setTimeout(()=>window.print(),200)}catch{document.body.innerHTML='<main><h1>Could not prepare the PDF</h1><p>One or more uploaded document pages did not load. Close this window and try again.</p></main>'}});window.addEventListener('afterprint',()=>window.close());</script></body></html>`);
+            printWindow.document.close();
+            printWindow.addEventListener("unload", cleanupAttachmentUrls, { once: true });
         } catch (exportError) {
+            cleanupAttachmentUrls();
             printWindow.close();
             setError(exportError instanceof Error ? exportError.message : "The application PDF could not be prepared.");
         } finally {
